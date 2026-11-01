@@ -1,0 +1,11 @@
+[package]
+name = "train_game"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rand = "0.10.3"
+crossterm = "0.29.0"
+color-print = "0.3.7"
+clearscreen = "5.0.0"
+anyhow = "1.0.104"
