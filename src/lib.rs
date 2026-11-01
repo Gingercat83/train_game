@@ -7,7 +7,7 @@ use crossterm::{
 };
 
 use crate::{
-    generation::{Trees, generate, generate_trees}, render::{DynamicRender, Element, Position, StaticRender, render_static_ui}, signal::Signals, station::Station, train::Train,
+    generation::{Junction, Trees, generate}, render::{DynamicRender, Element, Position, StaticRender, render_static_ui}, signal::Signals, station::Station, train::Train,
 };
 
 pub mod generation;
@@ -20,6 +20,7 @@ pub mod train;
 mod test;
 
 pub const TICKS_PER_SECOND: u64 = 20;
+pub const NUM_TRAIN_CARS: u16 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Input {
@@ -36,15 +37,17 @@ pub struct Game {
     pub trees: Trees,
     pub next_station: Station,
     pub signals: Signals,
+    pub junctions: Vec<Junction>
 }
 
 impl Game {
-    pub fn new(num_cars: u16) -> Self {
+    pub fn new() -> Self {
         Game {
-            train: Train::new(num_cars),
+            train: Train::new(NUM_TRAIN_CARS),
             trees: Trees::new(),
             next_station: Station::next_station(0.0),
             signals: Signals::new(),
+            junctions: Vec::new(),
         }
     }
 }
@@ -110,7 +113,7 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
     game.signals.render(train_pos)?;
     game.train.render_ui()?;
 
-    // FIXME: temporary signal position
+    // FIXME: temporary station position
     Element {
         lines: vec![format!(
             "Next station: {:.0}m",

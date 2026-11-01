@@ -3,7 +3,7 @@ use color_print::cformat;
 
 use crate::render::{DynamicRender, Element, Entity, Position, TRACK_Y};
 
-pub const MAX_SPEED_LIMIT: u16 = 160;
+pub const MAX_SPEED_LIMIT: u16 = 200;
 pub const MIN_SPEED_LIMIT: u16 = 40;
 pub const CONTROL_POINT_RANGE: f64 = 250.0;
 pub const DECELERATION: f64 = 13600.0;

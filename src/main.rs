@@ -5,7 +5,7 @@ use train_game::{Game, game_loop};
 fn main() -> Result<()> {
     enable_raw_mode()?;
 
-    let mut game = Game::new(3);
+    let mut game = Game::new();
 
     game_loop(&mut game)?;
 
