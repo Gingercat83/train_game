@@ -7,7 +7,11 @@ use crossterm::{
 };
 
 use crate::{
-    generation::{Junction, Trees, generate}, render::{DynamicRender, Element, Position, StaticRender, render_static_ui}, signal::Signals, station::Station, train::Train,
+    generation::{Junction, Trees, generate},
+    render::{DynamicRender, Element, Position, StaticRender, render_static_ui},
+    signal::Signals,
+    station::Station,
+    train::Train,
 };
 
 pub mod generation;
@@ -37,7 +41,7 @@ pub struct Game {
     pub trees: Trees,
     pub next_station: Station,
     pub signals: Signals,
-    pub junctions: Vec<Junction>
+    pub junctions: Vec<Junction>,
 }
 
 impl Game {
@@ -50,6 +54,13 @@ impl Game {
             junctions: Vec::new(),
         }
     }
+}
+
+pub fn is_overlapping(pos_a: (f64, f64), pos_b: (f64, f64)) -> bool {
+    // the objects are overlapping any point in b is between a0 and a1
+    (pos_a.0 < pos_b.0 && pos_b.0 < pos_a.1) || (pos_a.0 < pos_b.1 && pos_b.1 < pos_a.1)
+    // special case: b contains a
+    || (pos_b.0 < pos_a.0 && pos_a.0 < pos_b.1)
 }
 
 pub fn game_loop(game: &mut Game) -> Result<()> {

@@ -1,7 +1,10 @@
 use crate::{
     signal::{
-        DECELERATION, Signal, SignalState, Signals, SpeedControl, SpeedSign, SpeedSignType, calc_start_speed, calc_stopping_distance,
-    }, station::generate_station_name, *,
+        DECELERATION, Signal, SignalState, Signals, SpeedControl, SpeedSign, SpeedSignType,
+        calc_start_speed, calc_stopping_distance,
+    },
+    station::generate_station_name,
+    *,
 };
 
 #[test]
@@ -15,19 +18,19 @@ fn generate_station_names() {
 #[test]
 fn render_signs() {
     clearscreen::clear().unwrap();
-    
+
     SpeedSign::new(SpeedSignType::Limit(40), 40.0)
         .render(0.0)
         .unwrap();
-    
+
     SpeedSign::new(SpeedSignType::Limit(160), 80.0)
         .render(0.0)
         .unwrap();
-    
+
     SpeedSign::new(SpeedSignType::Reduction(120), 120.0)
         .render(0.0)
         .unwrap();
-    
+
     SpeedSign::new(SpeedSignType::Reduction(60), 160.0)
         .render(0.0)
         .unwrap();
@@ -144,8 +147,23 @@ fn test_signals() {
     signals.clear_all_signals();
 
     signals.render(0.0).unwrap();
-} 
+}
 
+#[test]
+fn overlap() {
+    // a is before b but not overlapping
+    assert_eq!(is_overlapping((0.0, 1.0), (2.0, 3.0)), false);
+    // a overlaps b
+    assert_eq!(is_overlapping((0.0, 2.0), (1.0, 3.0)), true);
+    // a contains b
+    assert_eq!(is_overlapping((0.0, 3.0), (1.0, 2.0)), true);
+    // b is before a but not overlapping
+    assert_eq!(is_overlapping((2.0, 3.0), (0.0, 1.0)), false);
+    // b overlaps a
+    assert_eq!(is_overlapping((1.0, 3.0), (0.0, 2.0)), true);
+    // b contains a
+    assert_eq!(is_overlapping((1.0, 2.0), (0.0, 3.0)), true);
+}
 
 // #[test]
 // fn alignment_from_str() {

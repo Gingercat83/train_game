@@ -1,3 +1,5 @@
+use std::cmp::Ordering::Equal;
+
 use anyhow::{Result, bail};
 use color_print::cformat;
 
@@ -129,7 +131,27 @@ impl ControlPoint for Signal {
                 reduction: None,
                 is_permanent: false,
             },
-            S::Yellow(speed) | S::Green(speed) => speed,
+            S::Yellow(SpeedControl {
+                limit, reduction, ..
+            }) => SpeedControl {
+                limit,
+                reduction,
+                // a yellow signal is never permanent because it could
+                // change to green
+                is_permanent: false,
+            },
+            S::Green(SpeedControl {
+                limit, reduction, ..
+            }) => {
+                // a green signal is permanent if it has a junction speed limit
+                // and its speed limit is not lowered by the next signal.
+                let is_permanent = limit.is_some() && limit == self.speed_limit;
+                SpeedControl {
+                    limit,
+                    reduction,
+                    is_permanent,
+                }
+            }
         }
     }
 
@@ -169,7 +191,9 @@ impl DynamicRender for Signal {
         let speed_display = match self.state {
             S::Red => cformat!("<black>___</>"),
             S::Yellow(speed) | S::Green(speed) => {
-                let SpeedControl { limit, reduction, ..} = speed;
+                let SpeedControl {
+                    limit, reduction, ..
+                } = speed;
                 match (limit, reduction) {
                     (None, None) | (None, Some(0)) => cformat!("<black>___</>"),
                     (Some(limit), None) => cformat!("<w,bold>{limit:3}</>"),
@@ -245,7 +269,16 @@ impl Signals {
     }
 
     pub fn add_signal(&mut self, sig: Signal) {
-        self.signals.push(sig)
+        self.signals.push(sig);
+
+        // sort signals array by position in descending order
+        // signals further down the track (greater position) should appear
+        // first in the array
+        self.signals.sort_by(|s0, s1| {
+            s0.position_meters
+                .partial_cmp(&s1.position_meters)
+                .unwrap_or(Equal)
+        });
     }
 
     /// Index 0 is the signal furthest down the track.
@@ -393,7 +426,7 @@ impl Signals {
     }
 
     pub fn get_line_speed(&self, _position_meters: f64) -> u16 {
-        // 60 
+        // 60
         MAX_SPEED_LIMIT
         // todo!()
     }
