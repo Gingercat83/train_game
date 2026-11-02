@@ -132,22 +132,47 @@ impl ControlPoint for Signal {
                 is_permanent: false,
             },
             S::Yellow(SpeedControl {
-                limit, reduction, ..
-            }) => SpeedControl {
-                limit: limit.min(self.speed_limit),
+                mut limit,
                 reduction,
-                // a yellow signal is never permanent because it could
-                // change to green
-                is_permanent: false,
-            },
+                ..
+            }) => {
+                // signal has a permanent speed limit
+                if let Some(perm_limit) = self.speed_limit {
+                    if let Some(lim) = limit {
+                        limit = Some(perm_limit.min(lim));
+                    } else {
+                        limit = Some(perm_limit)
+                    }
+                };
+
+                SpeedControl {
+                    limit,
+                    reduction,
+                    // a yellow signal is never permanent because it could
+                    // change to green
+                    is_permanent: false,
+                }
+            }
             S::Green(SpeedControl {
-                limit, reduction, ..
+                mut limit,
+                reduction,
+                ..
             }) => {
                 // a green signal is permanent if it has a junction speed limit
                 // and its speed limit is not lowered by the next signal.
                 let is_permanent = limit.is_some() && limit == self.speed_limit;
+
+                // signal has a permanent speed limit
+                if let Some(perm_limit) = self.speed_limit {
+                    if let Some(lim) = limit {
+                        limit = Some(perm_limit.min(lim));
+                    } else {
+                        limit = Some(perm_limit)
+                    }
+                };
+
                 SpeedControl {
-                    limit: limit.min(self.speed_limit),
+                    limit,
                     reduction,
                     is_permanent,
                 }
@@ -341,11 +366,9 @@ impl Signals {
     }
 
     pub fn update_signals(&mut self) {
-        if self.signals.len() == 0 {
+        if self.signals.len() <= 1 {
             return;
         }
-
-        let mut next_signal = self.signals[0].clone();
 
         for i in 1..self.signals.len() {
             // only update if this signal is clear
@@ -354,10 +377,11 @@ impl Signals {
                 continue;
             }
 
-            let dist = next_signal.position_meters - self.signals[i].position_meters;
-            let line_speed = self.get_line_speed(self.signals[i].position_meters);
+            let next_signal = self.signals[i - 1].clone();
+            let this_signal = &self.signals[i];
 
-            let this_signal = &mut self.signals[i];
+            let dist = next_signal.position_meters - this_signal.position_meters;
+            let line_speed = self.get_line_speed(this_signal.position_meters);
 
             // Update Logic:
             // - if the next signal is red, this signal should be yellow
@@ -396,6 +420,8 @@ impl Signals {
                 None
             };
 
+            let this_signal = &mut self.signals[i];
+
             // next signal is red
             if next_speed_limit == 0 {
                 this_signal.state = SignalState::Yellow(SpeedControl {
@@ -405,7 +431,8 @@ impl Signals {
                 })
             }
             // next signal's speed limit is too low to slow down at this signal's speed
-            else if max_speed < this_speed_limit && max_speed != next_speed_limit {
+            else if max_speed < this_speed_limit {
+                //FIXME && max_speed != next_speed_limit {
                 this_signal.state = SignalState::Yellow(SpeedControl {
                     limit: Some(max_speed),
                     reduction: Some(next_speed_limit),
@@ -425,8 +452,6 @@ impl Signals {
                     is_permanent: false,
                 })
             }
-
-            next_signal = self.signals[i].clone();
         }
     }
 

@@ -131,7 +131,8 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
                 "Next station: {:.0}m",
                 game.next_station.get_position_meters() - game.train.front_position()
             ),
-            format!("junctions: {}", game.junctions.len())
+            format!("junctions: {}", game.junctions.len()),
+            format!("signals: {} {:?}", game.signals.signals().len(), game.signals.signals())
         ],
         position: Position { x: 30, y: 10 },
     }

@@ -135,13 +135,14 @@ fn test_signals() {
 
     let mut signals = Signals::new();
 
-    for i in 0..10 {
-        let pos = 400.0 - (i * 40) as f64;
+    for i in 0..5 {
+        let pos = 400.0 - (i * 80) as f64;
 
         signals.add_signal(Signal::new(pos));
     }
 
-    signals.set_signal_speed_limit(6, Some(40)).unwrap();
+    signals.set_signal_speed_limit(3, Some(60)).unwrap();
+    signals.set_signal_speed_limit(4, Some(150)).unwrap();
 
     // this will also call update_signals()
     signals.clear_all_signals();

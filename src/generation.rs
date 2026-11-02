@@ -1,4 +1,4 @@
-use std::{cmp::Ordering::Equal};
+use std::cmp::Ordering::Equal;
 
 use anyhow::Result;
 use color_print::cformat;
@@ -11,7 +11,7 @@ use crate::{
 };
 
 const SIGNAL_SEPERATION: f64 = 500.0;
-const JUNCTION_SEPERATION: f64 = 2500.0;
+const JUNCTION_SEPERATION: f64 = 250.0; //FIXME
 const TREE_DIST: f64 = 100.0;
 
 #[derive(Debug, Clone)]
@@ -89,7 +89,7 @@ fn junc_speed() {
 fn generate_junctions(game: &mut Game) {
     let station_pos = game.next_station.get_position_meters();
 
-    let num_junctions = (station_pos / JUNCTION_SEPERATION) as usize ;
+    let num_junctions = (station_pos / JUNCTION_SEPERATION) as usize;
 
     // generate a junction right at the start
     game.junctions.push(Junction {
@@ -105,8 +105,8 @@ fn generate_junctions(game: &mut Game) {
         diverging_speed: Some(60),
     });
 
-    'gen_junction: for _ in 0..num_junctions {
-        let position = random_range(0.0..station_pos);
+    'gen_junction: for i in 0..num_junctions {
+        let position = i as f64 * JUNCTION_SEPERATION;//FIXME random_range(0.0..station_pos);
         let length = random_range(150.0..300.0);
 
         // make sure junctions are not too close
@@ -138,9 +138,9 @@ fn generate_signals(game: &mut Game) {
     generate_junctions(game);
 
     // generate signal after station
-    game.signals.add_signal(Signal::new(game.next_station.get_position_meters() + 160.0));
+    game.signals
+        .add_signal(Signal::new(game.next_station.get_position_meters() + 160.0));
 
-    
     for i in 0..game.junctions.len() {
         // generate a signal at each junction
         let junc = &game.junctions[i];
@@ -157,10 +157,13 @@ fn generate_signals(game: &mut Game) {
         let mut signal_pos = prev_junc.position;
 
         let dist = prev_junc.position - junc.position;
-        let num_signals = (dist / SIGNAL_SEPERATION).round();
-        let sep = dist / num_signals;
+        let mut num_signals = (dist / SIGNAL_SEPERATION).round() as usize;
+        if num_signals == 0 {
+            num_signals = 1;
+        }
+        let sep = dist / (num_signals as f64);
 
-        while signal_pos < junc.position {
+        for _ in 0..num_signals {
             game.signals.add_signal(Signal::new(signal_pos));
             signal_pos += sep;
         }
