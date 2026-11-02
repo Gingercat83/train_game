@@ -11,7 +11,7 @@ use crate::{
 };
 
 const SIGNAL_SEPERATION: f64 = 500.0;
-const JUNCTION_SEPERATION: f64 = 250.0; //FIXME
+const JUNCTION_SEPERATION: f64 = 2500.0;
 const TREE_DIST: f64 = 100.0;
 
 #[derive(Debug, Clone)]
@@ -92,6 +92,7 @@ fn generate_junctions(game: &mut Game) {
     let num_junctions = (station_pos / JUNCTION_SEPERATION) as usize;
 
     // generate a junction right at the start
+    println!("Adding junction at {}", game.train.front_position() + 80.0);
     game.junctions.push(Junction {
         position: game.train.front_position() + 80.0,
         length: random_range(150.0..300.0),
@@ -105,8 +106,8 @@ fn generate_junctions(game: &mut Game) {
         diverging_speed: Some(60),
     });
 
-    'gen_junction: for i in 0..num_junctions {
-        let position = i as f64 * JUNCTION_SEPERATION;//FIXME random_range(0.0..station_pos);
+    'gen_junction: for _ in 0..num_junctions {
+        let position = random_range(0.0..station_pos);
         let length = random_range(150.0..300.0);
 
         // make sure junctions are not too close
@@ -142,30 +143,35 @@ fn generate_signals(game: &mut Game) {
         .add_signal(Signal::new(game.next_station.get_position_meters() + 160.0));
 
     for i in 0..game.junctions.len() {
-        // generate a signal at each junction
         let junc = &game.junctions[i];
+
+        // generate a signal at each junction
         let mut signal = Signal::new(junc.position);
         signal.speed_limit = junc.diverging_speed;
         game.signals.add_signal(signal);
 
         // get the previous junction
-        let Some(prev_junc) = &game.junctions.get(i + 1) else {
+        let Some(prev_junc) = game.junctions.get(i + 1) else {
             continue;
         };
 
         // generate intermediate signals between this and previous junction
-        let mut signal_pos = prev_junc.position;
+        let dist = junc.position - prev_junc.position;
 
-        let dist = prev_junc.position - junc.position;
-        let mut num_signals = (dist / SIGNAL_SEPERATION).round() as usize;
+        // number of signals between junctions should be at least one
+        let mut num_signals = (dist / SIGNAL_SEPERATION).abs().round() as usize;
         if num_signals == 0 {
             num_signals = 1;
         }
-        let sep = dist / (num_signals as f64);
+
+        let sep = dist / ((num_signals + 1) as f64);
+
+        let mut signal_pos = junc.position;
 
         for _ in 0..num_signals {
+            signal_pos -= sep;
+            println!("  Adding intermediate signal at {signal_pos}");
             game.signals.add_signal(Signal::new(signal_pos));
-            signal_pos += sep;
         }
     }
 
