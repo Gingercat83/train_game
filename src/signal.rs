@@ -5,7 +5,7 @@ use color_print::cformat;
 
 use crate::render::{DynamicRender, Element, Entity, Position, TRACK_Y};
 
-pub const MAX_SPEED_LIMIT: u16 = 200;
+pub const MAX_SPEED_LIMIT: u16 = 160;
 pub const MIN_SPEED_LIMIT: u16 = 40;
 pub const CONTROL_POINT_RANGE: f64 = 250.0;
 pub const DECELERATION: f64 = 13600.0;
@@ -134,7 +134,7 @@ impl ControlPoint for Signal {
             S::Yellow(SpeedControl {
                 limit, reduction, ..
             }) => SpeedControl {
-                limit,
+                limit: limit.min(self.speed_limit),
                 reduction,
                 // a yellow signal is never permanent because it could
                 // change to green
@@ -147,7 +147,7 @@ impl ControlPoint for Signal {
                 // and its speed limit is not lowered by the next signal.
                 let is_permanent = limit.is_some() && limit == self.speed_limit;
                 SpeedControl {
-                    limit,
+                    limit: limit.min(self.speed_limit),
                     reduction,
                     is_permanent,
                 }
@@ -275,8 +275,8 @@ impl Signals {
         // signals further down the track (greater position) should appear
         // first in the array
         self.signals.sort_by(|s0, s1| {
-            s0.position_meters
-                .partial_cmp(&s1.position_meters)
+            s1.position_meters
+                .partial_cmp(&s0.position_meters)
                 .unwrap_or(Equal)
         });
     }
@@ -345,80 +345,85 @@ impl Signals {
             return;
         }
 
-        let mut next_signal = Signal::new(f64::MAX);
+        let mut next_signal = self.signals[0].clone();
 
-        for i in 0..self.signals.len() {
+        for i in 1..self.signals.len() {
+            // only update if this signal is clear
+            // if a signal is red, updating is skipped
+            if !self.signals[i].is_clear() {
+                continue;
+            }
+
             let dist = next_signal.position_meters - self.signals[i].position_meters;
             let line_speed = self.get_line_speed(self.signals[i].position_meters);
 
-            // only update if this signal is clear
-            // if a signal is red, updating is skipped
-            if self.signals[i].is_clear() {
-                let this_signal = &mut self.signals[i];
+            let this_signal = &mut self.signals[i];
 
-                // Update Logic:
-                // - if the next signal is red, this signal should be yellow
-                // and should have a speed limit that allows train to stop in time
-                // - if the next signal is showing a speed limit and there is not
-                // enough distance to slow down from the line speed from this signal,
-                // then this signal should show a speed limit that allows the train
-                // to slow down in time
-                // - if the next signal shows a speed limit but there is enough
-                // distance to slow down, the signal should show green
+            // Update Logic:
+            // - if the next signal is red, this signal should be yellow
+            // and should have a speed limit that allows train to stop in time
+            // - if the next signal is showing a speed limit and there is not
+            // enough distance to slow down from the line speed from this signal,
+            // then this signal should show a speed limit that allows the train
+            // to slow down in time
+            // - if the next signal shows a speed limit but there is enough
+            // distance to slow down, the signal should show green
 
-                let next_signal_speed = next_signal.speed_control();
-                let next_speed_limit = next_signal_speed.limit.unwrap_or(line_speed);
+            let next_signal_speed = next_signal.speed_control();
+            let next_speed_limit = next_signal_speed
+                .limit
+                .unwrap_or(line_speed)
+                .min(next_signal.speed_limit.unwrap_or(line_speed));
 
-                let this_signal_speed = this_signal.speed_control();
-                let this_speed_limit = this_signal_speed
-                    .limit
-                    .unwrap_or(line_speed)
-                    .min(this_signal.speed_limit.unwrap_or(line_speed));
+            let this_signal_speed = this_signal.speed_control();
+            let this_speed_limit = this_signal_speed
+                .limit
+                .unwrap_or(line_speed)
+                .min(this_signal.speed_limit.unwrap_or(line_speed));
 
-                let max_speed = calc_start_speed(next_speed_limit as f64, dist, DECELERATION);
+            let max_speed = calc_start_speed(next_speed_limit as f64, dist, DECELERATION);
 
-                // round to nearest 10
-                let max_speed = ((max_speed / 10.0).round() as u16) * 10;
+            // round to nearest 10
+            let max_speed = ((max_speed / 10.0).round() as u16) * 10;
 
-                // the max speed cannot be faster than current signal's speed limit
-                let max_speed = max_speed.min(this_speed_limit);
+            // the max speed cannot be faster than current signal's speed limit
+            let max_speed = max_speed.min(this_speed_limit);
 
-                // check max speed against line speed
-                let max_speed_maybe = if max_speed < line_speed {
-                    Some(max_speed)
+            // check max speed against line speed
+            let max_speed_maybe = if max_speed < line_speed {
+                Some(max_speed)
+            } else {
+                None
+            };
+
+            // next signal is red
+            if next_speed_limit == 0 {
+                this_signal.state = SignalState::Yellow(SpeedControl {
+                    limit: max_speed_maybe,
+                    reduction: Some(0),
+                    is_permanent: false,
+                })
+            }
+            // next signal's speed limit is too low to slow down at this signal's speed
+            else if max_speed < this_speed_limit && max_speed != next_speed_limit {
+                this_signal.state = SignalState::Yellow(SpeedControl {
+                    limit: Some(max_speed),
+                    reduction: Some(next_speed_limit),
+                    is_permanent: false,
+                })
+            }
+            // next signal's speed limit is not too low
+            else {
+                let reduction = if next_speed_limit < this_speed_limit {
+                    Some(next_speed_limit)
                 } else {
                     None
                 };
-
-                // next signal is red
-                if next_speed_limit == 0 {
-                    this_signal.state = SignalState::Yellow(SpeedControl {
-                        limit: max_speed_maybe,
-                        reduction: Some(0),
-                        is_permanent: false,
-                    })
-                }
-                // next signal's speed limit is too low to slow down at this signal's speed
-                else if max_speed < this_speed_limit && max_speed != next_speed_limit {
-                    this_signal.state = SignalState::Yellow(SpeedControl {
-                        limit: Some(max_speed),
-                        reduction: Some(next_speed_limit),
-                        is_permanent: false,
-                    })
-                }
-                // next signal's speed limit is not too low
-                else {
-                    let reduction = if next_speed_limit < this_speed_limit {
-                        Some(next_speed_limit)
-                    } else {
-                        None
-                    };
-                    this_signal.state = SignalState::Green(SpeedControl {
-                        limit: max_speed_maybe,
-                        reduction,
-                        is_permanent: false,
-                    })
-                }
+                this_signal.state = SignalState::Green(SpeedControl {
+                    limit: max_speed_maybe,
+                    reduction,
+                    is_permanent: false,
+                })
             }
 
             next_signal = self.signals[i].clone();

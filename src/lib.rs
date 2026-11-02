@@ -126,10 +126,13 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
 
     // FIXME: temporary station position
     Element {
-        lines: vec![format!(
-            "Next station: {:.0}m",
-            game.next_station.get_position_meters() - game.train.front_position()
-        )],
+        lines: vec![
+            format!(
+                "Next station: {:.0}m",
+                game.next_station.get_position_meters() - game.train.front_position()
+            ),
+            format!("junctions: {}", game.junctions.len())
+        ],
         position: Position { x: 30, y: 10 },
     }
     .render()?;

@@ -1,3 +1,5 @@
+use std::{cmp::Ordering::Equal};
+
 use anyhow::Result;
 use color_print::cformat;
 use rand::{random_bool, random_range};
@@ -5,11 +7,11 @@ use rand::{random_bool, random_range};
 use crate::{
     Game, is_overlapping,
     render::{DynamicRender, Element, Entity, Position},
-    signal::{MAX_SPEED_LIMIT, MIN_SPEED_LIMIT, Signal, SpeedSign, SpeedSignType},
-    station::MAX_STATION_DIST,
+    signal::{MAX_SPEED_LIMIT, MIN_SPEED_LIMIT, Signal},
 };
 
 const SIGNAL_SEPERATION: f64 = 500.0;
+const JUNCTION_SEPERATION: f64 = 2500.0;
 const TREE_DIST: f64 = 100.0;
 
 #[derive(Debug, Clone)]
@@ -76,16 +78,31 @@ fn generate_junction_speed() -> Option<u16> {
     }
 }
 
+#[test]
+fn junc_speed() {
+    for _ in 0..10 {
+        let s = generate_junction_speed();
+        println!("{s:?}");
+    }
+}
+
 fn generate_junctions(game: &mut Game) {
     let station_pos = game.next_station.get_position_meters();
 
-    let num_junctions = 10;//station_pos as usize / 1000;
+    let num_junctions = (station_pos / JUNCTION_SEPERATION) as usize ;
 
     // generate a junction right at the start
     game.junctions.push(Junction {
         position: game.train.front_position() + 80.0,
         length: random_range(150.0..300.0),
         diverging_speed: generate_junction_speed(),
+    });
+
+    // generate a junction at the station
+    game.junctions.push(Junction {
+        position: game.next_station.get_position_meters() - 80.0,
+        length: 1000.0,
+        diverging_speed: Some(60),
     });
 
     'gen_junction: for _ in 0..num_junctions {
@@ -102,34 +119,51 @@ fn generate_junctions(game: &mut Game) {
             ) {
                 continue 'gen_junction;
             }
-
-            let diverging_speed = generate_junction_speed();
-
-            game.junctions.push(Junction {
-                position,
-                length,
-                diverging_speed,
-            });
         }
+
+        let diverging_speed = generate_junction_speed();
+
+        game.junctions.push(Junction {
+            position,
+            length,
+            diverging_speed,
+        });
     }
 
-    game.junctions.sort_by(|j0, j1| {
-        let speed0 = j0.diverging_speed.unwrap_or(MAX_SPEED_LIMIT);
-        let speed1 = j1.diverging_speed.unwrap_or(MAX_SPEED_LIMIT);
-        // we want descending order because the 'first' junction should
-        // be further down the track
-        speed1.cmp(&speed0)
-    });
+    game.junctions
+        .sort_by(|s0, s1| s1.position.partial_cmp(&s0.position).unwrap_or(Equal));
 }
 
 fn generate_signals(game: &mut Game) {
     generate_junctions(game);
 
-    for junc in &game.junctions {
+    // generate signal after station
+    game.signals.add_signal(Signal::new(game.next_station.get_position_meters() + 160.0));
+
+    
+    for i in 0..game.junctions.len() {
         // generate a signal at each junction
+        let junc = &game.junctions[i];
         let mut signal = Signal::new(junc.position);
         signal.speed_limit = junc.diverging_speed;
         game.signals.add_signal(signal);
+
+        // get the previous junction
+        let Some(prev_junc) = &game.junctions.get(i + 1) else {
+            continue;
+        };
+
+        // generate intermediate signals between this and previous junction
+        let mut signal_pos = prev_junc.position;
+
+        let dist = prev_junc.position - junc.position;
+        let num_signals = (dist / SIGNAL_SEPERATION).round();
+        let sep = dist / num_signals;
+
+        while signal_pos < junc.position {
+            game.signals.add_signal(Signal::new(signal_pos));
+            signal_pos += sep;
+        }
     }
 
     game.signals.clear_all_signals();

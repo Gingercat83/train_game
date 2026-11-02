@@ -4,8 +4,8 @@ use rand::{random_bool, random_range};
 
 use crate::render::{DynamicRender, Element, Entity, Position, TRACK_Y};
 
-pub const MIN_STATION_DIST: f64 = 1000.0;
-pub const MAX_STATION_DIST: f64 = 5000.0;
+pub const MIN_STATION_DIST: f64 = 1000.0;//400.0;
+pub const MAX_STATION_DIST: f64 = 5000.0;//410.0;
 
 #[derive(Debug, Clone)]
 pub struct Station {
