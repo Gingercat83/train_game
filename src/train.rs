@@ -40,12 +40,12 @@ impl StaticRender for Train {
         // add each car
         for _ in 0..self.num_cars {
             lines[0] += &cformat!("<bg:b>       </> ");
-            lines[1] += &cformat!("<black>oo---oo</> ");
+            lines[1] += &cformat!("<black!>oo---oo</> ");
         }
 
         // add locomotive
         lines[0] += &cformat!("<bg:b>        =</>");
-        lines[1] += &cformat!("<black>oo---oo</><bg:b>  *</>");
+        lines[1] += &cformat!("<black!>oo---oo</><bg:b>  *</>");
 
         Element {
             lines,
