@@ -279,7 +279,7 @@ impl Train {
 
     pub fn render_ui(&self) -> Result<()> {
         let speed_display = if self.speed_kph < 0.1 {
-            cformat!("<black,bold>(   0 KPH )</>")
+            cformat!("<black!,bold>(   0 KPH )</>")
         } else {
             cformat!("<c,bold>( {:3.0} KPH )</>", self.speed_kph)
         };
@@ -290,7 +290,7 @@ impl Train {
             Throttle::Power(p) => cformat!("<c,bold>[P{p}]</>"),
             Throttle::Neutral => {
                 if brake_appl > 0.05 {
-                    cformat!("<black,bold>[N ]</>")
+                    cformat!("<black!,bold>[N ]</>")
                 } else {
                     cformat!("<g,bold>[N ]</>")
                 }

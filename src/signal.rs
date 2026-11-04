@@ -63,7 +63,7 @@ impl DynamicRender for SpeedSign {
         Entity {
             position_meters: self.position_meters,
             element: Element {
-                lines: vec![cformat!("{sign_text}"), cformat!("  <black>|</>")],
+                lines: vec![cformat!("{sign_text}"), cformat!("  <black!>|</>")],
                 position: Position {
                     x: 0,
                     y: TRACK_Y - 2,
@@ -190,20 +190,20 @@ impl DynamicRender for Signal {
         use SignalState as S;
 
         let signal_light = match self.state {
-            S::Red => cformat!("<r,bold>x</>"),
-            S::Yellow(_) => cformat!("<y,bold>o</>"),
-            S::Green(_) => cformat!("<g,bold>*</>"),
+            S::Red => cformat!("<r!,bold>x</>"),
+            S::Yellow(_) => cformat!("<y!,bold>o</>"),
+            S::Green(_) => cformat!("<g!,bold>*</>"),
         };
 
         Entity {
             position_meters: self.position_meters,
             element: Element {
                 lines: vec![
-                    cformat!("<black> _</>"),
-                    cformat!("<black>|</>{}<black>|</>", signal_light),
-                    cformat!("<black>|_|</>"),
+                    cformat!("<black!> _</>"),
+                    cformat!("<black!>|</>{}<black!>|</>", signal_light),
+                    cformat!("<black!>|_|</>"),
                     cformat!(""),
-                    cformat!("<black> |</>"),
+                    cformat!("<black!> |</>"),
                 ],
                 position: Position {
                     x: 1,
@@ -220,13 +220,13 @@ impl DynamicRender for Signal {
                     limit, reduction, ..
                 } = speed;
                 match (limit, reduction) {
-                    (None, None) | (None, Some(0)) => cformat!("<black>___</>"),
-                    (Some(limit), None) => cformat!("<w,bold>{limit:3}</>"),
-                    (None, Some(red)) => cformat!("<y,i>{red:3}</>"),
+                    (None, None) | (None, Some(0)) => cformat!("<black!>___</>"),
+                    (Some(limit), None) => cformat!("<w!,bold>{limit:3}</>"),
+                    (None, Some(red)) => cformat!("<y!,i>{red:3}</>"),
                     (Some(limit), Some(red)) if (limit <= red || red == 0) => {
-                        cformat!("<w,bold>{limit:3}</>")
+                        cformat!("<w!,bold>{limit:3}</>")
                     }
-                    (Some(_), Some(red)) => cformat!("<y,i>{red:3}</>"),
+                    (Some(_), Some(red)) => cformat!("<y!,i>{red:3}</>"),
                 }
             }
         };
@@ -235,8 +235,8 @@ impl DynamicRender for Signal {
             position_meters: self.position_meters,
             element: Element {
                 lines: vec![
-                    cformat!("<black>[</>{}<black>]</>", speed_display),
-                    cformat!("<black>  |</>"),
+                    cformat!("<black!>[</>{}<black!>]</>", speed_display),
+                    cformat!("<black!>  |</>"),
                 ],
                 position: Position {
                     x: 0,

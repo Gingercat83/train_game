@@ -1,9 +1,11 @@
 use std::{io::stdout, thread, time::Duration};
 
 use anyhow::{Result, bail};
+use color_print::cprintln;
 use crossterm::{
     ExecutableCommand, cursor,
     event::{self, KeyCode},
+    terminal::enable_raw_mode,
 };
 
 use crate::{
@@ -25,6 +27,17 @@ mod test;
 
 pub const TICKS_PER_SECOND: u64 = 20;
 pub const NUM_TRAIN_CARS: u16 = 3;
+
+/// The main game function. Call this to start the game.
+pub fn train_game() -> Result<()> {
+    enable_raw_mode()?;
+
+    let mut game = Game::new();
+
+    game_loop(&mut game)?;
+
+    Ok(())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Input {
@@ -78,8 +91,15 @@ pub fn game_loop(game: &mut Game) -> Result<()> {
             && key.is_press()
         {
             match key.code {
-                // if the escape key is pressed, exit the program
-                KeyCode::Esc => return Ok(()),
+                // if the escape or space key is pressed, pause the game
+                KeyCode::Esc | KeyCode::Char(' ') => {
+                    let pause_result = pause_game()?;
+                    if pause_result == PauseMenu::Quit {
+                        return Ok(());
+                    }
+                    None
+                }
+
                 KeyCode::Up => Some(Input::Up),
                 KeyCode::Down => Some(Input::Down),
                 KeyCode::Left => Some(Input::Left),
@@ -138,4 +158,35 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
     stdout().execute(cursor::MoveTo(0, 0))?;
 
     Ok(())
+}
+
+#[derive(Debug, PartialEq)]
+pub enum PauseMenu {
+    Resume,
+    Quit,
+}
+
+pub fn pause_game() -> Result<PauseMenu> {
+    stdout().execute(cursor::MoveTo(0, 0))?;
+    cprintln!("<bold>--- Game Paused ---</>     ");
+    cprintln!("<g,bold>[Space]</> - Resume      ");
+    cprintln!("<r,bold>[Esc]</>   - Quit        ");
+
+    loop {
+        if event::poll(Duration::from_secs(0))?
+            && let Some(key) = event::read()?.as_key_event()
+            && key.is_press()
+        {
+            match key.code {
+                // space to resume
+                KeyCode::Char(' ') => return Ok(PauseMenu::Resume),
+                // escape to quit
+                KeyCode::Esc => return Ok(PauseMenu::Quit),
+                _ => (),
+            }
+        }
+
+        // do some sleep so we don't hog all the cpu while waiting
+        thread::sleep(Duration::from_millis(100));
+    }
 }
