@@ -3,7 +3,7 @@ use std::cmp::Ordering::Equal;
 use anyhow::{Result, bail};
 use color_print::cformat;
 
-use crate::render::{DynamicRender, Element, Entity, Position, TRACK_Y};
+use crate::render::{DynamicRender, Element, Entity, METERS_PER_CHAR, Position, TRACK_Y};
 
 pub const MAX_SPEED_LIMIT: u16 = 160;
 pub const MIN_SPEED_LIMIT: u16 = 40;
@@ -103,6 +103,19 @@ impl SpeedSign {
             speed_type,
             position_meters,
         }
+    }
+
+    pub fn reduction_sign(&self, start_speed: u16) -> Option<SpeedSign> {
+        let speed_limit = self.speed_control().limit?;
+
+        let dist = calc_stopping_distance(speed_limit as f64, start_speed as f64, DECELERATION);
+
+        let reduction = SpeedSign {
+            speed_type: SpeedSignType::Reduction(speed_limit),
+            position_meters: self.position_meters - dist,
+        };
+
+        Some(reduction)
     }
 }
 
@@ -370,18 +383,23 @@ impl Signals {
             return;
         }
 
-        for i in 1..self.signals.len() {
+        // create a working copy to update
+        let mut signals_copy = self.signals.clone();
+
+        for i in 1..signals_copy.len() {
             // only update if this signal is clear
             // if a signal is red, updating is skipped
-            if !self.signals[i].is_clear() {
+            if !signals_copy[i].is_clear() {
                 continue;
             }
 
-            let next_signal = self.signals[i - 1].clone();
-            let this_signal = &self.signals[i];
+            let next_signal = signals_copy[i - 1].clone();
+            let this_signal = &mut signals_copy[i];
 
             let dist = next_signal.position_meters - this_signal.position_meters;
+
             let line_speed = self.get_line_speed(this_signal.position_meters);
+            let next_line_speed = self.get_line_speed(next_signal.position_meters);
 
             // Update Logic:
             // - if the next signal is red, this signal should be yellow
@@ -396,8 +414,8 @@ impl Signals {
             let next_signal_speed = next_signal.speed_control();
             let next_speed_limit = next_signal_speed
                 .limit
-                .unwrap_or(line_speed)
-                .min(next_signal.speed_limit.unwrap_or(line_speed));
+                .unwrap_or(next_line_speed)
+                .min(next_signal.speed_limit.unwrap_or(next_line_speed));
 
             let this_signal_speed = this_signal.speed_control();
             let this_speed_limit = this_signal_speed
@@ -405,7 +423,15 @@ impl Signals {
                 .unwrap_or(line_speed)
                 .min(this_signal.speed_limit.unwrap_or(line_speed));
 
-            let max_speed = calc_start_speed(next_speed_limit as f64, dist, DECELERATION);
+            // find the max speed for this signal
+            // if the next signal has a reduced speed limit, calculate the max speed
+            // if there is no reduced speed limit at the next signal, do not reduce max speed
+            // signals should not show line speed information
+            let max_speed = if next_speed_limit < next_line_speed {
+                calc_start_speed(next_speed_limit as f64, dist, DECELERATION)
+            } else {
+                line_speed as f64
+            };
 
             // round to nearest 10
             let max_speed = ((max_speed / 10.0).round() as u16) * 10;
@@ -420,7 +446,7 @@ impl Signals {
                 None
             };
 
-            let this_signal = &mut self.signals[i];
+            // let this_signal = &mut signals_copy[i];
 
             // next signal is red
             if next_speed_limit == 0 {
@@ -431,8 +457,10 @@ impl Signals {
                 })
             }
             // next signal's speed limit is too low to slow down at this signal's speed
-            else if max_speed < this_speed_limit {
-                //FIXME && max_speed != next_speed_limit {
+            else if max_speed < this_speed_limit
+                && max_speed != next_speed_limit
+                && next_speed_limit < next_line_speed
+            {
                 this_signal.state = SignalState::Yellow(SpeedControl {
                     limit: Some(max_speed),
                     reduction: Some(next_speed_limit),
@@ -441,11 +469,12 @@ impl Signals {
             }
             // next signal's speed limit is not too low
             else {
-                let reduction = if next_speed_limit < this_speed_limit {
-                    Some(next_speed_limit)
-                } else {
-                    None
-                };
+                let reduction =
+                    if next_speed_limit < this_speed_limit && next_speed_limit < next_line_speed {
+                        Some(next_speed_limit)
+                    } else {
+                        None
+                    };
                 this_signal.state = SignalState::Green(SpeedControl {
                     limit: max_speed_maybe,
                     reduction,
@@ -453,12 +482,35 @@ impl Signals {
                 })
             }
         }
+
+        // merge copy back into original
+        self.signals = signals_copy;
     }
 
-    pub fn get_line_speed(&self, _position_meters: f64) -> u16 {
-        // 60
-        MAX_SPEED_LIMIT
-        // todo!()
+    pub fn get_line_speed(&self, position_meters: f64) -> u16 {
+        let mut line_speed = MAX_SPEED_LIMIT;
+
+        for sign in &self.speed_signs {
+            // get the sign's speed limit and position
+            // if the sign is not a speed limit sign, go to the next one
+            let Some(limit) = sign.speed_control().limit else {
+                continue;
+            };
+            let sign_pos = sign.position_meters();
+
+            // if the sign is before the point we are checking,
+            // update the line speed
+            if sign_pos < position_meters {
+                line_speed = limit;
+            }
+            // if the sign is after the point,
+            // we are done
+            else {
+                break;
+            }
+        }
+
+        line_speed
     }
 
     pub fn add_sign(&mut self, sign: SpeedSign) {
@@ -471,6 +523,32 @@ impl Signals {
 
     pub fn signs(&self) -> &[SpeedSign] {
         &self.speed_signs
+    }
+
+    pub fn nudge_signs(&mut self) {
+        const MIN_SEPERATION: f64 = METERS_PER_CHAR * 6.0;
+
+        // create working copy of signs array
+        let mut signs_copy = self.speed_signs.clone();
+
+        for sign in &mut signs_copy {
+
+            // check against each sign or signal position
+            for signal in &self.signals {
+                let seperation = sign.position_meters() - signal.position_meters();
+
+                // check if sign is too close to signal
+                if seperation.abs() < MIN_SEPERATION {
+                    let direction = seperation.signum();
+
+                    // nudge sign
+                    sign.position_meters += MIN_SEPERATION * direction;
+                }
+            }
+        }
+
+        // merge copy back into original
+        self.speed_signs = signs_copy;
     }
 
     pub fn control_points(&self) -> impl Iterator<Item = &dyn ControlPoint> {
