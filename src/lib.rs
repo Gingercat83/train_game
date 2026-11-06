@@ -11,7 +11,7 @@ use crossterm::{
 use crate::{
     generation::{Junction, Trees, generate},
     render::{DynamicRender, Element, Position, StaticRender, render_static_ui},
-    signal::Signals,
+    signal::{ControlPoint, Signals},
     station::Station,
     train::Train,
 };
@@ -146,10 +146,17 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
 
     // FIXME: temporary station position
     Element {
-        lines: vec![format!(
-            "Next station: {:.0}m",
-            game.next_station.get_position_meters() - game.train.front_position()
-        )],
+        lines: vec![
+            format!(
+                "Next station: {:.0}m",
+                game.next_station.get_position_meters() - game.train.front_position()
+            ),
+            format!("current position: {}", game.train.get_position_meters()),
+            format!(
+                "speed limit: {}",
+                game.signals.get_line_speed(game.train.front_position())
+            ),
+        ],
         position: Position { x: 30, y: 10 },
     }
     .render()?;

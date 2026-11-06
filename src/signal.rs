@@ -7,6 +7,9 @@ use crate::render::{DynamicRender, Element, Entity, METERS_PER_CHAR, Position, T
 
 pub const MAX_SPEED_LIMIT: u16 = 160;
 pub const MIN_SPEED_LIMIT: u16 = 40;
+pub const MIN_LINE_SPEED: u16 = 80;
+pub const MAX_JUNCTION_SPEED: u16 = 120;
+
 pub const CONTROL_POINT_RANGE: f64 = 250.0;
 pub const DECELERATION: f64 = 13600.0;
 
@@ -498,14 +501,9 @@ impl Signals {
             };
             let sign_pos = sign.position_meters();
 
-            // if the sign is before the point we are checking,
-            // update the line speed
+            // the line speed is the most recently passed speed limit sign
             if sign_pos < position_meters {
                 line_speed = limit;
-            }
-            // if the sign is after the point,
-            // we are done
-            else {
                 break;
             }
         }
@@ -514,7 +512,16 @@ impl Signals {
     }
 
     pub fn add_sign(&mut self, sign: SpeedSign) {
-        self.speed_signs.push(sign)
+        self.speed_signs.push(sign);
+
+        // sort signs array by position in descending order
+        // signs further down the track (greater position) should appear
+        // first in the array
+        self.speed_signs.sort_by(|s0, s1| {
+            s1.position_meters
+                .partial_cmp(&s0.position_meters)
+                .unwrap_or(Equal)
+        });
     }
 
     pub fn get_sign(&self, index: usize) -> Option<&SpeedSign> {

@@ -5,9 +5,7 @@ use color_print::cformat;
 use rand::{random_bool, random_range};
 
 use crate::{
-    Game, is_overlapping,
-    render::{DynamicRender, Element, Entity, Position},
-    signal::{MAX_SPEED_LIMIT, MIN_SPEED_LIMIT, Signal},
+    Game, is_overlapping, render::{DynamicRender, Element, Entity, METERS_PER_CHAR, Position}, signal::{MAX_JUNCTION_SPEED, MAX_SPEED_LIMIT, MIN_LINE_SPEED, MIN_SPEED_LIMIT, Signal, SpeedSign, SpeedSignType},
 };
 
 const SIGNAL_SEPERATION: f64 = 500.0;
@@ -72,7 +70,7 @@ pub struct Junction {
 
 fn generate_junction_speed() -> Option<u16> {
     if random_bool(0.75) {
-        Some(random_range((MIN_SPEED_LIMIT / 10)..=(MAX_SPEED_LIMIT / 15)) * 10)
+        Some(random_range((MIN_SPEED_LIMIT / 10)..=(MAX_JUNCTION_SPEED / 10)) * 10)
     } else {
         None
     }
@@ -178,7 +176,35 @@ fn generate_signals(game: &mut Game) {
     game.signals.clear_all_signals();
 }
 
+pub fn generate_speed_limits(game: &mut Game) {
+    let start_line_speed = random_range((MIN_LINE_SPEED / 10)..=(MAX_SPEED_LIMIT / 10)) * 10;
+    let sign_pos = game.train.front_position() + METERS_PER_CHAR * 6.0;
+    game.signals.add_sign(SpeedSign::new(SpeedSignType::Limit(start_line_speed), sign_pos));
+
+    for i in 1..game.junctions.len() {
+        let next_junc = &game.junctions[i - 1];
+        let prev_junc = &game.junctions[i];
+
+        let min_speed = MIN_LINE_SPEED
+            .max(prev_junc.diverging_speed.unwrap_or(game.signals.get_line_speed(prev_junc.position)))
+            .max(next_junc.diverging_speed.unwrap_or(game.signals.get_line_speed(prev_junc.position)));
+
+        let line_speed = random_range((min_speed / 10)..=(MAX_SPEED_LIMIT / 10)) * 10;
+
+        let sign_position = prev_junc.position + prev_junc.length;
+
+        let speed_sign = SpeedSign::new(SpeedSignType::Limit(line_speed), sign_position);
+        // let reduction_sign = ...;
+
+        game.signals.add_sign(speed_sign);
+    }
+
+    game.signals.nudge_signs();
+    game.signals.update_signals();
+}
+
 pub fn generate(game: &mut Game) {
     generate_trees(game);
     generate_signals(game);
+    generate_speed_limits(game);
 }
