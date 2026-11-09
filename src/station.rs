@@ -2,10 +2,12 @@ use anyhow::Result;
 use color_print::cformat;
 use rand::{random_bool, random_range};
 
-use crate::render::{DynamicRender, Element, Entity, Position, TRACK_Y};
+use crate::render::{DynamicRender, Element, Entity, METERS_PER_CHAR, Position, TRACK_Y};
 
 pub const MIN_STATION_DIST: f64 = 1000.0;//400.0;
 pub const MAX_STATION_DIST: f64 = 5000.0;//410.0;
+pub const STATION_LENGTH: f64 = 21.0 * METERS_PER_CHAR;
+pub const STATION_SPEED_LIMIT: u16 = 60;
 
 #[derive(Debug, Clone)]
 pub struct Station {

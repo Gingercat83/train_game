@@ -76,13 +76,13 @@ fn generate_junction_speed() -> Option<u16> {
     }
 }
 
-#[test]
-fn junc_speed() {
-    for _ in 0..10 {
-        let s = generate_junction_speed();
-        println!("{s:?}");
-    }
-}
+// #[test]
+// fn junc_speed() {
+//     for _ in 0..10 {
+//         let s = generate_junction_speed();
+//         println!("{s:?}");
+//     }
+// }
 
 fn generate_junctions(game: &mut Game) {
     let station_pos = game.next_station.get_position_meters();

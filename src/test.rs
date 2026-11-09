@@ -2,9 +2,7 @@ use crate::{
     signal::{
         DECELERATION, Signal, SignalState, Signals, SpeedControl, SpeedSign, SpeedSignType,
         calc_start_speed, calc_stopping_distance,
-    },
-    station::generate_station_name,
-    *,
+    }, station::{STATION_LENGTH, generate_station_name}, track_gen::{StationTrack, Track, TrackPieces}, *,
 };
 
 #[test]
@@ -172,6 +170,40 @@ fn overlap() {
     assert_eq!(is_overlapping((1.0, 3.0), (0.0, 2.0)), true);
     // b contains a
     assert_eq!(is_overlapping((1.0, 2.0), (0.0, 3.0)), true);
+}
+
+#[test]
+fn track_segments() {
+    const TRACK_LEN: f64 = 100.0;
+    
+    let mut tracks = TrackPieces::new();
+
+    tracks.add_piece(Track {
+        length: TRACK_LEN,
+        speed_limit: 100
+    });
+
+    tracks.add_piece(StationTrack {
+        length: STATION_LENGTH,
+        speed_limit: 60,
+        station: Station::new(TRACK_LEN)
+    });
+
+    assert!(tracks.get_piece(0).is_some());
+    assert!(tracks.get_piece(1).is_some());
+    assert!(tracks.get_piece(2).is_none());
+
+    assert_eq!(tracks.get_segment_start(0), Some(0.0));
+    assert_eq!(tracks.get_segment_start(1), Some(TRACK_LEN));
+    assert_eq!(tracks.get_segment_start(2), Some(TRACK_LEN + STATION_LENGTH));
+    assert_eq!(tracks.get_segment_start(3), None);
+}
+
+#[test]
+fn track_gen() {
+    let mut tracks = TrackPieces::new();
+    tracks.generate_tracks(1000.0, 5000.0);
+    dbg!(tracks);
 }
 
 // #[test]

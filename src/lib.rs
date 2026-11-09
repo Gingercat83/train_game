@@ -1,4 +1,4 @@
-use std::{io::stdout, thread, time::Duration};
+use std::{io::stdout, ops::Range, thread, time::Duration};
 
 use anyhow::{Result, bail};
 use color_print::cprintln;
@@ -7,6 +7,7 @@ use crossterm::{
     event::{self, KeyCode},
     terminal::enable_raw_mode,
 };
+use rand::random_range;
 
 use crate::{
     generation::{Junction, Trees, generate},
@@ -17,6 +18,7 @@ use crate::{
 };
 
 pub mod generation;
+pub mod track_gen;
 pub mod render;
 pub mod signal;
 pub mod station;
@@ -74,6 +76,10 @@ pub fn is_overlapping(pos_a: (f64, f64), pos_b: (f64, f64)) -> bool {
     (pos_a.0 < pos_b.0 && pos_b.0 < pos_a.1) || (pos_a.0 < pos_b.1 && pos_b.1 < pos_a.1)
     // special case: b contains a
     || (pos_b.0 < pos_a.0 && pos_a.0 < pos_b.1)
+}
+
+pub fn random_speed_limit(min: u16, max: u16) -> u16 {
+    random_range((min / 10)..=(max / 10)) * 10
 }
 
 pub fn game_loop(game: &mut Game) -> Result<()> {
