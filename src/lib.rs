@@ -1,5 +1,4 @@
-use std::{io::stdout, ops::Range, thread, time::Duration};
-
+use std::{io::stdout, thread, time::Duration};
 use anyhow::{Result, bail};
 use color_print::cprintln;
 use crossterm::{
@@ -12,16 +11,17 @@ use rand::random_range;
 use crate::{
     generation::{Junction, Trees, generate},
     render::{DynamicRender, Element, Position, StaticRender, render_static_ui},
-    signal::{ControlPoint, Signals},
+    signal::Signals,
     station::Station,
+    track_gen::TrackPieces,
     train::Train,
 };
 
 pub mod generation;
-pub mod track_gen;
 pub mod render;
 pub mod signal;
 pub mod station;
+pub mod track_gen;
 pub mod train;
 
 #[cfg(test)]
@@ -56,6 +56,7 @@ pub struct Game {
     pub trees: Trees,
     pub next_station: Station,
     pub signals: Signals,
+    pub tracks: TrackPieces,
     pub junctions: Vec<Junction>,
 }
 
@@ -66,8 +67,33 @@ impl Game {
             trees: Trees::new(),
             next_station: Station::next_station(0.0),
             signals: Signals::new(),
+            tracks: TrackPieces::new(),
             junctions: Vec::new(),
         }
+    }
+
+    pub fn update(&mut self) {
+        self.train.tick();
+    }
+}
+
+impl StaticRender for Game {
+    fn render(&self) -> Result<()> {
+        let train_pos = self.train.get_position_meters();
+
+        clearscreen::clear()?;
+
+        render_static_ui()?;
+        self.trees.render(train_pos)?;
+        self.next_station.render(train_pos)?;
+        self.train.render()?;
+        self.signals.render(train_pos)?;
+        self.train.render_ui()?;
+
+        // move cursor to corner
+        stdout().execute(cursor::MoveTo(0, 0))?;
+
+        Ok(())
     }
 }
 
@@ -91,30 +117,11 @@ pub fn game_loop(game: &mut Game) -> Result<()> {
             thread::sleep(Duration::from_millis(1000 / TICKS_PER_SECOND));
         });
 
-        // if input is immediately available, get input
-        let input = if event::poll(Duration::from_secs(0))?
-            && let Some(key) = event::read()?.as_key_event()
-            && key.is_press()
-        {
-            match key.code {
-                // if the escape or space key is pressed, pause the game
-                KeyCode::Esc | KeyCode::Char(' ') => {
-                    let pause_result = pause_game()?;
-                    if pause_result == PauseMenu::Quit {
-                        return Ok(());
-                    }
-                    None
-                }
-
-                KeyCode::Up => Some(Input::Up),
-                KeyCode::Down => Some(Input::Down),
-                KeyCode::Left => Some(Input::Left),
-                KeyCode::Right => Some(Input::Right),
-                KeyCode::Backspace => Some(Input::EBrake),
-                _ => None,
-            }
-        } else {
-            None
+        // get input
+        let input = match get_input()? {
+            Action::Continue => None,
+            Action::Input(input) => Some(input),
+            Action::Quit => return Ok(()),
         };
 
         // run game logic
@@ -129,26 +136,16 @@ pub fn game_loop(game: &mut Game) -> Result<()> {
 }
 
 pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
-    clearscreen::clear()?;
-
     // handle input
     if let Some(inp) = input {
         game.train.handle_input(inp);
     }
 
     // update game
-    game.train.tick();
+    game.update();
 
-    let train_pos = game.train.get_position_meters();
-
-    // render ui
-
-    render_static_ui()?;
-    game.trees.render(train_pos)?;
-    game.next_station.render(train_pos)?;
-    game.train.render()?;
-    game.signals.render(train_pos)?;
-    game.train.render_ui()?;
+    // render game
+    game.render()?;
 
     // FIXME: temporary station position
     Element {
@@ -174,12 +171,35 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum PauseMenu {
-    Resume,
+pub enum Action {
+    Continue,
+    Input(Input),
     Quit,
 }
 
-pub fn pause_game() -> Result<PauseMenu> {
+pub fn get_input() -> Result<Action> {
+    // if input is immediately available, get input
+    if event::poll(Duration::from_secs(0))?
+        && let Some(key) = event::read()?.as_key_event()
+        && key.is_press()
+    {
+        match key.code {
+            // if the escape or space key is pressed, pause the game
+            KeyCode::Esc | KeyCode::Char(' ') => pause_game(),
+
+            KeyCode::Up => Ok(Action::Input(Input::Up)),
+            KeyCode::Down => Ok(Action::Input(Input::Down)),
+            KeyCode::Left => Ok(Action::Input(Input::Left)),
+            KeyCode::Right => Ok(Action::Input(Input::Right)),
+            KeyCode::Backspace => Ok(Action::Input(Input::EBrake)),
+            _ => Ok(Action::Continue),
+        }
+    } else {
+        Ok(Action::Continue)
+    }
+}
+
+pub fn pause_game() -> Result<Action> {
     stdout().execute(cursor::MoveTo(0, 0))?;
     cprintln!("<bold>--- Game Paused ---</>     ");
     cprintln!("<g,bold>[Space]</> - Resume      ");
@@ -192,9 +212,9 @@ pub fn pause_game() -> Result<PauseMenu> {
         {
             match key.code {
                 // space to resume
-                KeyCode::Char(' ') => return Ok(PauseMenu::Resume),
+                KeyCode::Char(' ') => return Ok(Action::Continue),
                 // escape to quit
-                KeyCode::Esc => return Ok(PauseMenu::Quit),
+                KeyCode::Esc => return Ok(Action::Quit),
                 _ => (),
             }
         }
