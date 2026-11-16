@@ -1,8 +1,8 @@
 use crate::{
-    signal::{
+    is_overlapping, render::DynamicRender, signal::{
         DECELERATION, Signal, SignalState, Signals, SpeedControl, SpeedSign, SpeedSignType,
         calc_start_speed, calc_stopping_distance,
-    }, station::{STATION_LENGTH, generate_station_name}, track_gen::{StationTrack, Track, TrackPieces}, *,
+    }, station::{STATION_LENGTH, generate_station_name}, track_gen::{TrackPiece, TrackPieceType, TrackPieces}
 };
 
 #[test]
@@ -175,18 +175,19 @@ fn overlap() {
 #[test]
 fn track_segments() {
     const TRACK_LEN: f64 = 100.0;
-    
+
     let mut tracks = TrackPieces::new();
 
-    tracks.add_piece(Track {
+    tracks.add_piece(TrackPiece {
         length: TRACK_LEN,
-        speed_limit: 100
+        speed_limit: 100,
+        track_type: TrackPieceType::Track,
     });
 
-    tracks.add_piece(StationTrack {
+    tracks.add_piece(TrackPiece {
         length: STATION_LENGTH,
         speed_limit: 60,
-        station: Station::new(TRACK_LEN)
+        track_type: TrackPieceType::Station
     });
 
     assert!(tracks.get_piece(0).is_some());
@@ -195,15 +196,31 @@ fn track_segments() {
 
     assert_eq!(tracks.get_segment_start(0), Some(0.0));
     assert_eq!(tracks.get_segment_start(1), Some(TRACK_LEN));
-    assert_eq!(tracks.get_segment_start(2), Some(TRACK_LEN + STATION_LENGTH));
+    assert_eq!(
+        tracks.get_segment_start(2),
+        Some(TRACK_LEN + STATION_LENGTH)
+    );
     assert_eq!(tracks.get_segment_start(3), None);
+}
+
+#[test]
+fn track_iter() {
+    let mut tracks = TrackPieces::new();
+    tracks.generate_tracks(1000.0, 5000.0);
+    let iter = tracks.get_pieces();
+    for track in iter {
+        dbg!(track);
+    }
 }
 
 #[test]
 fn track_gen() {
     let mut tracks = TrackPieces::new();
     tracks.generate_tracks(1000.0, 5000.0);
-    dbg!(tracks);
+    dbg!(&tracks);
+    dbg!(tracks.get_junctions().collect::<Box<[_]>>());
+    dbg!(tracks.get_station_track());
+    dbg!(tracks.total_length());
 }
 
 // #[test]
