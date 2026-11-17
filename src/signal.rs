@@ -1,9 +1,11 @@
 use std::cmp::Ordering::Equal;
 
 use anyhow::{Result, bail};
-use color_print::cformat;
 
-use crate::render::{DynamicRender, Element, Entity, METERS_PER_CHAR, Position, TRACK_Y};
+use crate::{
+    control_point::{ControlPoint, Signal, SignalState, SpeedControl, SpeedSign},
+    render::{DynamicRender, METERS_PER_CHAR},
+};
 
 pub const MAX_SPEED_LIMIT: u16 = 160;
 pub const MIN_SPEED_LIMIT: u16 = 40;
@@ -30,257 +32,6 @@ pub fn calc_stopping_distance(end_speed: f64, start_speed: f64, deceleration: f6
     let distance_km = (f64::powi(end_speed, 2) - f64::powi(start_speed, 2)) / (2.0 * accel);
     let distance_meters = distance_km * 1000.0;
     distance_meters
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct SpeedControl {
-    pub limit: Option<u16>,
-    pub reduction: Option<u16>,
-    pub is_permanent: bool,
-}
-
-pub trait ControlPoint {
-    fn speed_control(&self) -> SpeedControl;
-    fn position_meters(&self) -> f64;
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SpeedSignType {
-    Limit(u16),
-    Reduction(u16),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct SpeedSign {
-    speed_type: SpeedSignType,
-    position_meters: f64,
-}
-
-impl DynamicRender for SpeedSign {
-    fn render(&self, position_meters: f64) -> Result<()> {
-        let sign_text = match self.speed_type {
-            SpeedSignType::Limit(lim) => cformat!("<c,bold>[{lim:3}]</>"),
-            SpeedSignType::Reduction(red) => cformat!("<y>[<i>{red:3}</>]</>"),
-        };
-
-        Entity {
-            position_meters: self.position_meters,
-            element: Element {
-                lines: vec![cformat!("{sign_text}"), cformat!("  <black!>|</>")],
-                position: Position {
-                    x: 0,
-                    y: TRACK_Y - 2,
-                },
-            },
-        }
-        .render(position_meters)?;
-
-        Ok(())
-    }
-}
-
-impl ControlPoint for SpeedSign {
-    fn speed_control(&self) -> SpeedControl {
-        match self.speed_type {
-            SpeedSignType::Limit(lim) => SpeedControl {
-                limit: Some(lim),
-                reduction: None,
-                is_permanent: true,
-            },
-            SpeedSignType::Reduction(red) => SpeedControl {
-                limit: None,
-                reduction: Some(red),
-                is_permanent: true,
-            },
-        }
-    }
-
-    fn position_meters(&self) -> f64 {
-        self.position_meters
-    }
-}
-
-impl SpeedSign {
-    pub fn new(speed_type: SpeedSignType, position_meters: f64) -> Self {
-        Self {
-            speed_type,
-            position_meters,
-        }
-    }
-
-    pub fn reduction_sign(&self, start_speed: u16) -> Option<SpeedSign> {
-        let speed_limit = self.speed_control().limit?;
-
-        let dist = calc_stopping_distance(speed_limit as f64, start_speed as f64, DECELERATION);
-
-        let reduction = SpeedSign {
-            speed_type: SpeedSignType::Reduction(speed_limit),
-            position_meters: self.position_meters - dist,
-        };
-
-        Some(reduction)
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub enum SignalState {
-    #[default]
-    Red,
-    Yellow(SpeedControl),
-    Green(SpeedControl),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct Signal {
-    pub state: SignalState,
-    pub speed_limit: Option<u16>,
-    position_meters: f64,
-}
-
-impl ControlPoint for Signal {
-    fn speed_control(&self) -> SpeedControl {
-        use SignalState as S;
-
-        match self.state {
-            S::Red => SpeedControl {
-                limit: Some(0),
-                reduction: None,
-                is_permanent: false,
-            },
-            S::Yellow(SpeedControl {
-                mut limit,
-                reduction,
-                ..
-            }) => {
-                // signal has a permanent speed limit
-                if let Some(perm_limit) = self.speed_limit {
-                    if let Some(lim) = limit {
-                        limit = Some(perm_limit.min(lim));
-                    } else {
-                        limit = Some(perm_limit)
-                    }
-                };
-
-                SpeedControl {
-                    limit,
-                    reduction,
-                    // a yellow signal is never permanent because it could
-                    // change to green
-                    is_permanent: false,
-                }
-            }
-            S::Green(SpeedControl {
-                mut limit,
-                reduction,
-                ..
-            }) => {
-                // a green signal is permanent if it has a junction speed limit
-                // and its speed limit is not lowered by the next signal.
-                let is_permanent = limit.is_some() && limit == self.speed_limit;
-
-                // signal has a permanent speed limit
-                if let Some(perm_limit) = self.speed_limit {
-                    if let Some(lim) = limit {
-                        limit = Some(perm_limit.min(lim));
-                    } else {
-                        limit = Some(perm_limit)
-                    }
-                };
-
-                SpeedControl {
-                    limit,
-                    reduction,
-                    is_permanent,
-                }
-            }
-        }
-    }
-
-    fn position_meters(&self) -> f64 {
-        self.position_meters
-    }
-}
-
-impl DynamicRender for Signal {
-    fn render(&self, position_meters: f64) -> Result<()> {
-        use SignalState as S;
-
-        let signal_light = match self.state {
-            S::Red => cformat!("<r!,bold>x</>"),
-            S::Yellow(_) => cformat!("<y!,bold>o</>"),
-            S::Green(_) => cformat!("<g!,bold>*</>"),
-        };
-
-        Entity {
-            position_meters: self.position_meters,
-            element: Element {
-                lines: vec![
-                    cformat!("<black!> _</>"),
-                    cformat!("<black!>|</>{}<black!>|</>", signal_light),
-                    cformat!("<black!>|_|</>"),
-                    cformat!(""),
-                    cformat!("<black!> |</>"),
-                ],
-                position: Position {
-                    x: 1,
-                    y: TRACK_Y - 5,
-                },
-            },
-        }
-        .render(position_meters)?;
-
-        let speed_display = match self.state {
-            S::Red => cformat!("<black>___</>"),
-            S::Yellow(speed) | S::Green(speed) => {
-                let SpeedControl {
-                    limit, reduction, ..
-                } = speed;
-                match (limit, reduction) {
-                    (None, None) | (None, Some(0)) => cformat!("<black!>___</>"),
-                    (Some(limit), None) => cformat!("<w!,bold>{limit:3}</>"),
-                    (None, Some(red)) => cformat!("<y!,i>{red:3}</>"),
-                    (Some(limit), Some(red)) if (limit <= red || red == 0) => {
-                        cformat!("<w!,bold>{limit:3}</>")
-                    }
-                    (Some(_), Some(red)) => cformat!("<y!,i>{red:3}</>"),
-                }
-            }
-        };
-
-        Entity {
-            position_meters: self.position_meters,
-            element: Element {
-                lines: vec![
-                    cformat!("<black!>[</>{}<black!>]</>", speed_display),
-                    cformat!("<black!>  |</>"),
-                ],
-                position: Position {
-                    x: 0,
-                    y: TRACK_Y - 2,
-                },
-            },
-        }
-        .render(position_meters)?;
-
-        Ok(())
-    }
-}
-
-impl Signal {
-    pub fn new(position_meters: f64) -> Self {
-        Signal {
-            state: SignalState::default(),
-            speed_limit: None,
-            position_meters,
-        }
-    }
-
-    pub fn is_clear(&self) -> bool {
-        match self.state {
-            SignalState::Red => false,
-            _ => true,
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -316,8 +67,8 @@ impl Signals {
         // signals further down the track (greater position) should appear
         // first in the array
         self.signals.sort_by(|s0, s1| {
-            s1.position_meters
-                .partial_cmp(&s0.position_meters)
+            s1.position_meters()
+                .partial_cmp(&s0.position_meters())
                 .unwrap_or(Equal)
         });
     }
@@ -399,10 +150,10 @@ impl Signals {
             let next_signal = signals_copy[i - 1].clone();
             let this_signal = &mut signals_copy[i];
 
-            let dist = next_signal.position_meters - this_signal.position_meters;
+            let dist = next_signal.position_meters() - this_signal.position_meters();
 
-            let line_speed = self.get_line_speed(this_signal.position_meters);
-            let next_line_speed = self.get_line_speed(next_signal.position_meters);
+            let line_speed = self.get_line_speed(this_signal.position_meters());
+            let next_line_speed = self.get_line_speed(next_signal.position_meters());
 
             // Update Logic:
             // - if the next signal is red, this signal should be yellow
@@ -518,8 +269,8 @@ impl Signals {
         // signs further down the track (greater position) should appear
         // first in the array
         self.speed_signs.sort_by(|s0, s1| {
-            s1.position_meters
-                .partial_cmp(&s0.position_meters)
+            s1.position_meters()
+                .partial_cmp(&s0.position_meters())
                 .unwrap_or(Equal)
         });
     }
@@ -539,7 +290,6 @@ impl Signals {
         let mut signs_copy = self.speed_signs.clone();
 
         for sign in &mut signs_copy {
-
             // check against each sign or signal position
             for signal in &self.signals {
                 let seperation = sign.position_meters() - signal.position_meters();
@@ -549,7 +299,8 @@ impl Signals {
                     let direction = seperation.signum();
 
                     // nudge sign
-                    sign.position_meters += MIN_SEPERATION * direction;
+                    let new_pos = sign.position_meters() + MIN_SEPERATION * direction;
+                    sign.set_position(new_pos);
                 }
             }
         }

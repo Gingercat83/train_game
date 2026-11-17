@@ -59,12 +59,6 @@ impl Station {
     pub fn get_name(&self) -> &str {
         &self.name
     }
-
-    pub fn next_station(position_meters: f64) -> Self {
-        let distance = random_range(MIN_STATION_DIST..MAX_STATION_DIST);
-        let new_position = position_meters + distance;
-        Self::new(new_position)
-    }
 }
 
 pub fn generate_station_name() -> String {

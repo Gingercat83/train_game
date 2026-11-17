@@ -1,8 +1,15 @@
 use crate::{
-    is_overlapping, render::DynamicRender, signal::{
-        DECELERATION, Signal, SignalState, Signals, SpeedControl, SpeedSign, SpeedSignType,
+    control_point::{
+        Signal, SignalState, SpeedControl, SpeedSign, SpeedSignType,
+    },
+    is_overlapping,
+    render::DynamicRender,
+    signal::{
+        DECELERATION, Signals, 
         calc_start_speed, calc_stopping_distance,
-    }, station::{STATION_LENGTH, generate_station_name}, track_gen::{TrackPiece, TrackPieceType, TrackPieces}
+    },
+    station::{STATION_LENGTH, generate_station_name},
+    track_gen::{TrackPiece, TrackPieceType, TrackPieces},
 };
 
 #[test]
@@ -187,7 +194,7 @@ fn track_segments() {
     tracks.add_piece(TrackPiece {
         length: STATION_LENGTH,
         speed_limit: 60,
-        track_type: TrackPieceType::Station
+        track_type: TrackPieceType::Station,
     });
 
     assert!(tracks.get_piece(0).is_some());
@@ -222,71 +229,3 @@ fn track_gen() {
     dbg!(tracks.get_station_track());
     dbg!(tracks.total_length());
 }
-
-// #[test]
-// fn alignment_from_str() {
-//     use render::*;
-//     assert_eq!(
-//         Alignment::from_str("tl"),
-//         Alignment {
-//             vertical: VerticalAlignment::Top,
-//             horizontal: HorizontalAlignment::Left
-//         }
-//     );
-//     assert_eq!(
-//         Alignment::from_str("tr"),
-//         Alignment {
-//             vertical: VerticalAlignment::Top,
-//             horizontal: HorizontalAlignment::Right
-//         }
-//     );
-//     assert_eq!(
-//         Alignment::from_str("bl"),
-//         Alignment {
-//             vertical: VerticalAlignment::Bottom,
-//             horizontal: HorizontalAlignment::Left
-//         }
-//     );
-//     assert_eq!(
-//         Alignment::from_str("br"),
-//         Alignment {
-//             vertical: VerticalAlignment::Bottom,
-//             horizontal: HorizontalAlignment::Right
-//         }
-//     );
-//     assert_eq!(
-//         Alignment::from_str("tc"),
-//         Alignment {
-//             vertical: VerticalAlignment::Top,
-//             horizontal: HorizontalAlignment::Center
-//         }
-//     );
-//     assert_eq!(
-//         Alignment::from_str("b"),
-//         Alignment {
-//             vertical: VerticalAlignment::Bottom,
-//             horizontal: HorizontalAlignment::Center
-//         }
-//     );
-//     assert_eq!(
-//         Alignment::from_str("rc"),
-//         Alignment {
-//             vertical: VerticalAlignment::Center,
-//             horizontal: HorizontalAlignment::Right
-//         }
-//     );
-//     assert_eq!(
-//         Alignment::from_str("cl"),
-//         Alignment {
-//             vertical: VerticalAlignment::Center,
-//             horizontal: HorizontalAlignment::Left
-//         }
-//     );
-//     assert_eq!(
-//         Alignment::from_str("c"),
-//         Alignment {
-//             vertical: VerticalAlignment::Center,
-//             horizontal: HorizontalAlignment::Center
-//         }
-//     );
-// }

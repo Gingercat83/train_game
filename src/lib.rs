@@ -1,4 +1,3 @@
-use std::{io::stdout, thread, time::Duration};
 use anyhow::{Result, bail};
 use color_print::cprintln;
 use crossterm::{
@@ -7,9 +6,10 @@ use crossterm::{
     terminal::enable_raw_mode,
 };
 use rand::random_range;
+use std::{io::stdout, thread, time::Duration};
 
 use crate::{
-    generation::{Junction, Trees, generate},
+    generation::{Trees, generate},
     render::{DynamicRender, Element, Position, StaticRender, render_static_ui},
     signal::Signals,
     station::Station,
@@ -17,6 +17,7 @@ use crate::{
     train::Train,
 };
 
+pub mod control_point;
 pub mod generation;
 pub mod render;
 pub mod signal;
@@ -57,7 +58,6 @@ pub struct Game {
     pub next_station: Station,
     pub signals: Signals,
     pub tracks: TrackPieces,
-    pub junctions: Vec<Junction>,
 }
 
 impl Game {
@@ -65,10 +65,9 @@ impl Game {
         Game {
             train: Train::new(NUM_TRAIN_CARS),
             trees: Trees::new(),
-            next_station: Station::next_station(0.0),
+            next_station: Station::new(0.0),
             signals: Signals::new(),
             tracks: TrackPieces::new(),
-            junctions: Vec::new(),
         }
     }
 
@@ -159,6 +158,8 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
                 "speed limit: {}",
                 game.signals.get_line_speed(game.train.front_position())
             ),
+            // format!("signals: {:?}", game.signals),
+            // format!("tracks: {:?}", game.tracks),
         ],
         position: Position { x: 30, y: 10 },
     }
