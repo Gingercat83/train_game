@@ -113,6 +113,7 @@ fn generate_signals(game: &mut Game) {
     }
 
     game.signals.clear_all_signals();
+    game.signals.set_random_stop_signals();
 }
 
 pub fn generate_speed_limits(game: &mut Game) {

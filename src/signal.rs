@@ -1,8 +1,10 @@
 use std::cmp::Ordering::Equal;
 
 use anyhow::{Result, bail};
+use rand::random_bool;
 
 use crate::{
+    TICKS_PER_SECOND,
     control_point::{ControlPoint, Signal, SignalState, SpeedControl, SpeedSign},
     render::{DynamicRender, METERS_PER_CHAR},
 };
@@ -96,11 +98,39 @@ impl Signals {
     }
 
     pub fn set_signal_clear(&mut self, index: usize) -> Result<()> {
+        if index == 0 {
+            bail!("The last signal must remain at stop")
+        }
+
         let Some(sig) = self.signals.get_mut(index) else {
             bail!("Signal #{index} does not exist")
         };
 
         sig.state = SignalState::Green(SpeedControl::default());
+
+        self.update_signals();
+
+        Ok(())
+    }
+
+    /// Sets this signal to clear and the next signal to stop,
+    /// simulating the train ahead traveling down the line.
+    pub fn set_stop_next(&mut self, index: usize) -> Result<()> {
+        if index == 0 {
+            bail!("The last signal must remain at stop")
+        }
+        let Some(this_sig) = self.signals.get_mut(index) else {
+            bail!("Signal #{index} does not exist")
+        };
+
+        this_sig.state = SignalState::Green(SpeedControl::default());
+
+        let next_sig = self
+            .signals
+            .get_mut(index - 1)
+            .expect("just checked that index is not zero");
+
+        next_sig.state = SignalState::Red;
 
         self.update_signals();
 
@@ -133,6 +163,8 @@ impl Signals {
     }
 
     pub fn update_signals(&mut self) {
+        const YELLOW_SIGNAL_THRESHOLD: u16 = 60;
+
         if self.signals.len() <= 1 {
             return;
         }
@@ -157,13 +189,13 @@ impl Signals {
 
             // Update Logic:
             // - if the next signal is red, this signal should be yellow
-            // and should have a speed limit that allows train to stop in time
-            // - if the next signal is showing a speed limit and there is not
-            // enough distance to slow down from the line speed from this signal,
-            // then this signal should show a speed limit that allows the train
-            // to slow down in time
-            // - if the next signal shows a speed limit but there is enough
-            // distance to slow down, the signal should show green
+            // and should have a speed limit that allows train to stop in time.
+            // - if the next signal is showing a speed limit below a certain
+            // threshold, it this signal should show yellow with the speed
+            // reduction.
+            // - if the next signal has a speed limit above the threshold or
+            // is showing line speed, this signal should be green and show
+            // the speed reduction if necessary.
 
             let next_signal_speed = next_signal.speed_control();
             let next_speed_limit = next_signal_speed
@@ -210,10 +242,10 @@ impl Signals {
                     is_permanent: false,
                 })
             }
-            // next signal's speed limit is too low to slow down at this signal's speed
-            else if max_speed < this_speed_limit
-                && max_speed != next_speed_limit
+            // next signal's speed limit is below threshold
+            else if next_speed_limit < this_speed_limit
                 && next_speed_limit < next_line_speed
+                && next_speed_limit <= YELLOW_SIGNAL_THRESHOLD
             {
                 this_signal.state = SignalState::Yellow(SpeedControl {
                     limit: Some(max_speed),
@@ -239,6 +271,29 @@ impl Signals {
 
         // merge copy back into original
         self.signals = signals_copy;
+    }
+
+    pub fn set_random_stop_signals(&mut self) {
+        const RED_CHANCE: f64 = 0.2;
+        for i in 0..self.signals.len() {
+            if random_bool(RED_CHANCE) {
+                self.set_signal_stop(i).unwrap();
+            }
+        }
+
+        self.update_signals();
+    }
+
+    pub fn update_stop_signals(&mut self, train_position: f64, tick_counter: u64) {
+        const TIME_INTERVAL_SECONDS: u64 = 5;
+
+        // only run this function every few seconds
+        let run_every = TIME_INTERVAL_SECONDS * TICKS_PER_SECOND;
+        if tick_counter % run_every != 0 {
+            return;
+        }
+
+        self.update_signals();
     }
 
     pub fn get_line_speed(&self, position_meters: f64) -> u16 {

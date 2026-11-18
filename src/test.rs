@@ -146,7 +146,7 @@ fn test_signals() {
         signals.add_signal(Signal::new(pos));
     }
 
-    signals.set_signal_speed_limit(2, Some(40)).unwrap();
+    // signals.set_signal_speed_limit(1, Some(50)).unwrap();
     // signals.set_signal_speed_limit(4, Some(150)).unwrap();
 
     signals.add_sign(SpeedSign::new(SpeedSignType::Limit(80), 20.0));
@@ -159,6 +159,11 @@ fn test_signals() {
 
     // this will also call update_signals()
     signals.clear_all_signals();
+
+    signals.set_random_stop_signals();
+
+    // signals.set_signal_stop(3).unwrap();
+    // signals.set_stop_next(3).unwrap();
 
     signals.render(0.0).unwrap();
 }

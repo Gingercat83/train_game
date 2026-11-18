@@ -215,6 +215,7 @@ impl DynamicRender for Signal {
                 } = speed;
                 match (limit, reduction) {
                     (None, None) | (None, Some(0)) => cformat!("<black!>___</>"),
+                    (_, Some(0)) if self.speed_limit.is_none() => cformat!("<black!>___</>"),
                     (Some(limit), None) => cformat!("<w!,bold>{limit:3}</>"),
                     (None, Some(red)) => cformat!("<y!,i>{red:3}</>"),
                     (Some(limit), Some(red)) if (limit <= red || red == 0) => {

@@ -58,6 +58,7 @@ pub struct Game {
     pub next_station: Station,
     pub signals: Signals,
     pub tracks: TrackPieces,
+    pub tick_counter: u64,
 }
 
 impl Game {
@@ -68,11 +69,15 @@ impl Game {
             next_station: Station::new(0.0),
             signals: Signals::new(),
             tracks: TrackPieces::new(),
+            tick_counter: 0,
         }
     }
 
     pub fn update(&mut self) {
         self.train.tick();
+        self.signals
+            .update_stop_signals(self.train.front_position(), self.tick_counter);
+        self.tick_counter += 1;
     }
 }
 
@@ -158,8 +163,8 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
                 "speed limit: {}",
                 game.signals.get_line_speed(game.train.front_position())
             ),
-            // format!("signals: {:?}", game.signals),
-            // format!("tracks: {:?}", game.tracks),
+            format!("ticks: {}", game.tick_counter), // format!("signals: {:?}", game.signals),
+                                                     // format!("tracks: {:?}", game.tracks),
         ],
         position: Position { x: 30, y: 10 },
     }
