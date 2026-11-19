@@ -203,24 +203,24 @@ impl Signals {
                 .unwrap_or(next_line_speed)
                 .min(next_signal.speed_limit.unwrap_or(next_line_speed));
 
-            let this_signal_speed = this_signal.speed_control();
-            let this_speed_limit = this_signal_speed
-                .limit
-                .unwrap_or(line_speed)
-                .min(this_signal.speed_limit.unwrap_or(line_speed));
+            // let this_signal_speed = this_signal.speed_control();
+            let this_speed_limit = this_signal.speed_limit.unwrap_or(line_speed);
+            // this_signal_speed
+            //     .limit
+            //     .unwrap_or(line_speed)
+            //     .min(this_signal.speed_limit.unwrap_or(line_speed));
 
             // find the max speed for this signal
             // if the next signal has a reduced speed limit, calculate the max speed
             // if there is no reduced speed limit at the next signal, do not reduce max speed
             // signals should not show line speed information
             let max_speed = if next_speed_limit < next_line_speed {
-                calc_start_speed(next_speed_limit as f64, dist, DECELERATION)
+                let speed = calc_start_speed(next_speed_limit as f64, dist, DECELERATION);
+                let speed_rounded = ((speed / 10.0).round() as u16) * 10;
+                speed_rounded
             } else {
-                line_speed as f64
+                line_speed
             };
-
-            // round to nearest 10
-            let max_speed = ((max_speed / 10.0).round() as u16) * 10;
 
             // the max speed cannot be faster than current signal's speed limit
             let max_speed = max_speed.min(this_speed_limit);
@@ -285,12 +285,51 @@ impl Signals {
     }
 
     pub fn update_stop_signals(&mut self, train_position: f64, tick_counter: u64) {
-        const TIME_INTERVAL_SECONDS: u64 = 5;
+        const DISTANCE_THRESHOLD: f64 = 750.0;
+        const SIGNAL_CLEAR_CHANCE_PER_SEC: f64 = 0.075;
 
-        // only run this function every few seconds
-        let run_every = TIME_INTERVAL_SECONDS * TICKS_PER_SECOND;
+        // only run this function every second
+        let run_every = TICKS_PER_SECOND;
         if tick_counter % run_every != 0 {
             return;
+        }
+
+        // get first red signal in front of the train
+        let mut red_signal_index: usize = 0;
+
+        // loop in reverse because farther signals appear
+        // first in the list of signals
+        // exclude 0 because it is the last signal, which should stay red
+        for i in (1..self.signals.len()).rev() {
+            let signal = &self.signals[i];
+            // signal is in front of the train and is red
+            if signal.position_meters() > train_position && signal.state == SignalState::Red {
+                red_signal_index = i;
+                break;
+            }
+        }
+
+        // exit if a red signal was not found
+        if red_signal_index == 0 {
+            return;
+        };
+
+        let red_signal = &self.signals[red_signal_index];
+        let distance = red_signal.position_meters() - train_position;
+
+        // if the train is too far away, do not continue to clear the signal
+        if distance > DISTANCE_THRESHOLD {
+            return;
+        }
+
+        let should_clear_signal = random_bool(SIGNAL_CLEAR_CHANCE_PER_SEC);
+        if should_clear_signal {
+            // either clear the signal or propogate red state to next signal
+            if random_bool(0.5) {
+                self.set_signal_clear(red_signal_index).unwrap();
+            } else {
+                self.set_stop_next(red_signal_index).unwrap();
+            }
         }
 
         self.update_signals();
