@@ -10,7 +10,7 @@ use std::{io::stdout, thread, time::Duration};
 
 use crate::{
     generation::{Trees, generate},
-    render::{DynamicRender, Element, Position, StaticRender, render_static_ui},
+    render::{DynamicRender, StaticRender, render_static_ui},
     signal::Signals,
     station::Station,
     track_gen::TrackPieces,
@@ -24,6 +24,7 @@ pub mod signal;
 pub mod station;
 pub mod track_gen;
 pub mod train;
+pub mod train_control;
 
 #[cfg(test)]
 mod test;
@@ -74,7 +75,7 @@ impl Game {
     }
 
     pub fn update(&mut self) {
-        self.train.tick();
+        self.train.tick(&self.signals);
         self.signals
             .update_stop_signals(self.train.front_position(), self.tick_counter);
         self.tick_counter += 1;
@@ -152,23 +153,23 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
     game.render()?;
 
     // FIXME: temporary station position
-    Element {
-        lines: vec![
-            format!(
-                "Next station: {:.0}m",
-                game.next_station.get_position_meters() - game.train.front_position()
-            ),
-            format!("current position: {}", game.train.get_position_meters()),
-            format!(
-                "speed limit: {}",
-                game.signals.get_line_speed(game.train.front_position())
-            ),
-            format!("ticks: {}", game.tick_counter), // format!("signals: {:?}", game.signals),
-                                                     // format!("tracks: {:?}", game.tracks),
-        ],
-        position: Position { x: 30, y: 10 },
-    }
-    .render()?;
+    // Element {
+    //     lines: vec![
+    //         format!(
+    //             "Next station: {:.0}m",
+    //             game.next_station.get_position_meters() - game.train.front_position()
+    //         ),
+    //         format!("current position: {}", game.train.get_position_meters()),
+    //         format!(
+    //             "speed limit: {}",
+    //             game.signals.get_line_speed(game.train.front_position())
+    //         ),
+    //         format!("ticks: {}", game.tick_counter), // format!("signals: {:?}", game.signals),
+    //                                                  // format!("tracks: {:?}", game.tracks),
+    //     ],
+    //     position: Position { x: 30, y: 10 },
+    // }
+    // .render()?;
 
     // move cursor to corner
     stdout().execute(cursor::MoveTo(0, 0))?;

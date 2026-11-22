@@ -1,9 +1,13 @@
+use std::array;
+
 use anyhow::Result;
 use color_print::cformat;
 
 use crate::{
     Input, TICKS_PER_SECOND,
     render::{Element, METERS_PER_CHAR, Position, StaticRender, TRACK_Y},
+    signal::{MIN_SPEED_LIMIT, Signals},
+    train_control::{DebugTrainControl, SpeedEnforcement, StandardTrainControl, TrainControl},
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -22,7 +26,7 @@ pub enum Brake {
     Emergency,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Train {
     num_cars: u16,
     position_meters: f64,
@@ -31,6 +35,7 @@ pub struct Train {
     brake_setting: Brake,
     brake_pipe_pressure: f64,
     equalize_pressure: f64,
+    train_control: Box<dyn TrainControl>,
 }
 
 impl StaticRender for Train {
@@ -55,6 +60,11 @@ impl StaticRender for Train {
             },
         }
         .render()?;
+
+        // render ui
+        self.render_ui()?;
+        self.render_train_control()?;
+
         Ok(())
     }
 }
@@ -67,12 +77,13 @@ impl Train {
     const EMERGENCY_PRESSURE: f64 = 1.0;
     const RELEASED_PRESSURE: f64 = 5.0;
 
-    pub fn new(num_cars: u16) -> Self {
+    pub fn new(num_cars: u16) -> Train {
         let car_lengths = num_cars * Self::CAR_LENGTH;
         let total_length = car_lengths + Self::LOCO_LENGTH;
         let position = total_length + Self::LEFT_OFFSET;
         let position_meters = position as f64 / METERS_PER_CHAR;
         let brake_pipe_pressure = (Self::EMERGENCY_PRESSURE + Self::RELEASED_PRESSURE) / 2.0;
+        let train_control = Box::new(StandardTrainControl::new());
         Train {
             num_cars,
             speed_kph: 0.0,
@@ -81,6 +92,7 @@ impl Train {
             brake_setting: Brake::Hold,
             brake_pipe_pressure,
             equalize_pressure: brake_pipe_pressure,
+            train_control,
         }
     }
 
@@ -167,7 +179,10 @@ impl Train {
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, signals: &Signals) {
+        // update train control
+        self.train_control.update(signals, self.front_position());
+
         // update brake pressure
         match self.brake_setting {
             Brake::Release => self.equalize_pressure += 0.1,
@@ -390,6 +405,43 @@ impl Train {
             },
         }
         .render()?;
+        Ok(())
+    }
+
+    pub fn render_train_control(&self) -> Result<()> {
+        let SpeedEnforcement {
+            limit,
+            reduction,
+            stop_close,
+        } = self.train_control.get_speed_enforcement();
+
+        let mut signal_display: [String; 3] = array::from_fn(|_| cformat!("<black!>-----</>"));
+
+        // show stop
+        if stop_close {
+            signal_display[2] = cformat!("<r,bold>[000]</>");
+        }
+        // show speed limit
+        else if limit <= reduction {
+            signal_display[0] = cformat!("<g,bold>[{:>3}]</>", limit);
+        }
+        // show reduction
+        else {
+            signal_display[1] =
+                cformat!("<y,bold>[<i>{:>3}</>]</>", reduction.max(MIN_SPEED_LIMIT));
+        }
+
+        let signal_display_string = signal_display.concat();
+
+        Element {
+            lines: vec![format!("  {}", signal_display_string)],
+            position: Position {
+                x: 32,
+                y: TRACK_Y + 3,
+            },
+        }
+        .render()?;
+
         Ok(())
     }
 }

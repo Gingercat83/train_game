@@ -77,7 +77,7 @@ pub fn render_static_ui() -> Result<()> {
     }
     .render()?;
 
-    // ui
+    // train ui
     Element {
         lines: vec![
             format!("+{}+", "-".repeat(21)),
@@ -99,5 +99,29 @@ pub fn render_static_ui() -> Result<()> {
         },
     }
     .render()?;
+
+    // signaling system and station ui
+    Element {
+        lines: vec![
+            format!("+{}+", "-".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("+{}+", "-".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("|{}|", " ".repeat(21)),
+            format!("+{}+", "-".repeat(21)),
+        ],
+        position: Position {
+            x: 30,
+            y: TRACK_Y + 2,
+        },
+    }
+    .render()?;
+
     Ok(())
 }
