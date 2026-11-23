@@ -1,9 +1,12 @@
-use std::{cmp::min, fmt::Debug};
+use std::fmt::Debug;
 
 use crate::{
     control_point::{ControlPoint, Signal, SpeedControl, SpeedSign},
     signal::{MAX_SPEED_LIMIT, Signals},
 };
+
+pub const PENALTY_BRAKE_THRESHOLD: i16 = 5;
+pub const EMERGENCY_BRAKE_THRESHOLD: i16 = 20;
 
 pub struct SpeedEnforcement {
     pub limit: u16,
@@ -153,12 +156,12 @@ impl StandardTrainControl {
             let SpeedControl {
                 limit, reduction, ..
             } = this_sign.speed_control();
-            
+
             if let Some(limit) = limit {
                 self.sign_speed.speed_limit = limit;
 
                 // reset the signal speed limit
-                self.signal_speed.speed_limit =  MAX_SPEED_LIMIT;
+                self.signal_speed.speed_limit = MAX_SPEED_LIMIT;
 
                 // if the limit matches the previous reduction, clear the reduction
                 if limit == self.sign_speed.speed_reduction {

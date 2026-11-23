@@ -1,12 +1,16 @@
 use anyhow::{Result, bail};
-use color_print::cprintln;
+use color_print::{cformat, cprintln};
 use crossterm::{
     ExecutableCommand, cursor,
     event::{self, KeyCode},
     terminal::enable_raw_mode,
 };
 use rand::random_range;
-use std::{io::stdout, thread, time::Duration};
+use std::{
+    io::stdout,
+    thread::{self, sleep},
+    time::Duration,
+};
 
 use crate::{
     generation::{Trees, generate},
@@ -38,7 +42,11 @@ pub fn train_game() -> Result<()> {
 
     let mut game = Game::new();
 
-    game_loop(&mut game)?;
+    let quit_message = game_loop(&mut game)?;
+
+    clearscreen::clear()?;
+    println!("{quit_message}");
+    sleep(Duration::from_secs(2));
 
     Ok(())
 }
@@ -74,11 +82,12 @@ impl Game {
         }
     }
 
-    pub fn update(&mut self) {
-        self.train.tick(&self.signals);
+    pub fn update(&mut self) -> Action {
         self.signals
             .update_stop_signals(self.train.front_position(), self.tick_counter);
         self.tick_counter += 1;
+
+        self.train.tick(&self.signals)
     }
 }
 
@@ -113,7 +122,7 @@ pub fn random_speed_limit(min: u16, max: u16) -> u16 {
     random_range((min / 10)..=(max / 10)) * 10
 }
 
-pub fn game_loop(game: &mut Game) -> Result<()> {
+pub fn game_loop(game: &mut Game) -> Result<String> {
     generate(game);
 
     loop {
@@ -126,11 +135,14 @@ pub fn game_loop(game: &mut Game) -> Result<()> {
         let input = match get_input()? {
             Action::Continue => None,
             Action::Input(input) => Some(input),
-            Action::Quit => return Ok(()),
+            Action::Quit(message) => return Ok(message),
         };
 
         // run game logic
-        tick(game, input)?;
+        match tick(game, input)? {
+            Action::Quit(message) => return Ok(message),
+            _ => ()
+        }
 
         // wait for tick timer
         let result = handle.join();
@@ -140,14 +152,14 @@ pub fn game_loop(game: &mut Game) -> Result<()> {
     }
 }
 
-pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
+pub fn tick(game: &mut Game, input: Option<Input>) -> Result<Action> {
     // handle input
     if let Some(inp) = input {
         game.train.handle_input(inp);
     }
 
     // update game
-    game.update();
+    let result = game.update();
 
     // render game
     game.render()?;
@@ -174,14 +186,14 @@ pub fn tick(game: &mut Game, input: Option<Input>) -> Result<()> {
     // move cursor to corner
     stdout().execute(cursor::MoveTo(0, 0))?;
 
-    Ok(())
+    Ok(result)
 }
 
 #[derive(Debug, PartialEq)]
 pub enum Action {
     Continue,
     Input(Input),
-    Quit,
+    Quit(String),
 }
 
 pub fn get_input() -> Result<Action> {
@@ -221,7 +233,11 @@ pub fn pause_game() -> Result<Action> {
                 // space to resume
                 KeyCode::Char(' ') => return Ok(Action::Continue),
                 // escape to quit
-                KeyCode::Esc => return Ok(Action::Quit),
+                KeyCode::Esc => {
+                    return Ok(Action::Quit(cformat!(
+                        "<green,bold>Thank you for playing!</>"
+                    )));
+                }
                 _ => (),
             }
         }

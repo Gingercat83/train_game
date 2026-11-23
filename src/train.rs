@@ -4,10 +4,9 @@ use anyhow::Result;
 use color_print::cformat;
 
 use crate::{
-    Input, TICKS_PER_SECOND,
-    render::{Element, METERS_PER_CHAR, Position, StaticRender, TRACK_Y},
-    signal::{MIN_SPEED_LIMIT, Signals},
-    train_control::{DebugTrainControl, SpeedEnforcement, StandardTrainControl, TrainControl},
+    Action, Input, TICKS_PER_SECOND, render::{Element, METERS_PER_CHAR, Position, StaticRender, TRACK_Y}, signal::{MIN_SPEED_LIMIT, Signals}, train_control::{
+        EMERGENCY_BRAKE_THRESHOLD, PENALTY_BRAKE_THRESHOLD, SpeedEnforcement, StandardTrainControl, TrainControl,
+    },
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -179,9 +178,40 @@ impl Train {
         }
     }
 
-    pub fn tick(&mut self, signals: &Signals) {
+    pub fn enforce_train_control(&mut self) -> Action {
+        let enforcement = self.train_control.get_speed_enforcement();
+
+        // check if a red signal was passed
+        if enforcement.limit == 0 {
+            return Action::Quit(cformat!(
+                "<red,bold>Game Failed: Signal passed at danger</>"
+            ));
+        }
+
+        let rounded_speed = self.speed_kph.round() as i16;
+        let speed_excess = rounded_speed - (enforcement.limit as i16);
+
+        // emergency brake
+        if speed_excess >= EMERGENCY_BRAKE_THRESHOLD {
+            self.brake_setting = Brake::Emergency;
+        } 
+        // penalty brake
+        else if speed_excess >= PENALTY_BRAKE_THRESHOLD && self.brake_setting != Brake::Emergency {
+            self.brake_setting = Brake::Apply;
+        }
+        
+
+        Action::Continue
+    }
+
+    pub fn tick(&mut self, signals: &Signals) -> Action {
         // update train control
         self.train_control.update(signals, self.front_position());
+
+        let enforce_result = self.enforce_train_control();
+        if let Action::Quit(_) = enforce_result {
+            return enforce_result;
+        }
 
         // update brake pressure
         match self.brake_setting {
@@ -215,6 +245,8 @@ impl Train {
         let meters_per_second = self.speed_kph / 3.6;
         let meters_traveled = meters_per_second / TICKS_PER_SECOND as f64;
         self.position_meters += meters_traveled;
+
+        Action::Continue
     }
 
     pub fn increase_throttle(&mut self) {
@@ -409,11 +441,13 @@ impl Train {
     }
 
     pub fn render_train_control(&self) -> Result<()> {
+        let enforcement = self.train_control.get_speed_enforcement();
+
         let SpeedEnforcement {
             limit,
             reduction,
             stop_close,
-        } = self.train_control.get_speed_enforcement();
+        } = enforcement;
 
         let mut signal_display: [String; 3] = array::from_fn(|_| cformat!("<black!>-----</>"));
 
@@ -433,8 +467,44 @@ impl Train {
 
         let signal_display_string = signal_display.concat();
 
+        let rounded_speed = self.speed_kph.round() as i16;
+        let speed_excess = rounded_speed - (enforcement.limit as i16);
+        let speed_reduce = rounded_speed - (enforcement.reduction as i16);
+
+        // speeding
+        let status0 = if speed_excess > 0 {
+            cformat!("<r,bold>OVERSPEED</>")
+        }
+        // stop ahead
+        else if enforcement.reduction == 0 {
+            cformat!("<y>Stop Ahead</>")
+        }
+        // reduce speed
+        else if speed_reduce > 0 {
+            cformat!("<y>Reduce Speed Ahead</>")
+        } else {
+            String::new()
+        };
+
+        // emergency brake
+        let status1 = if speed_excess >= EMERGENCY_BRAKE_THRESHOLD || self.brake_setting == Brake::Emergency {
+            cformat!("<r,bold>EMERGENCY BRAKE APPLIED")
+        } 
+        // penalty brake
+        else if speed_excess >= PENALTY_BRAKE_THRESHOLD {
+            cformat!("<r,bold>PENALTY BRAKE APPLIED</>")
+        }
+        else {
+            String::new()
+        };
+
         Element {
-            lines: vec![format!("  {}", signal_display_string)],
+            lines: vec![
+                format!("    {}", signal_display_string),
+                String::new(),
+                status0,
+                status1,
+            ],
             position: Position {
                 x: 32,
                 y: TRACK_Y + 3,
