@@ -69,59 +69,59 @@ impl DynamicRender for Entity {
     }
 }
 
-pub fn render_static_ui() -> Result<()> {
-    // track
-    Element {
-        lines: vec!["=".repeat(MAX_WIDTH as usize)],
-        position: Position { x: 0, y: TRACK_Y },
-    }
-    .render()?;
+// pub fn render_static_ui() -> Result<()> {
+//     // track
+//     Element {
+//         lines: vec!["=".repeat(MAX_WIDTH as usize)],
+//         position: Position { x: 0, y: TRACK_Y },
+//     }
+//     .render()?;
 
-    // train ui
-    Element {
-        lines: vec![
-            format!("+{}+", "-".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("+{}+", "-".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("|{}|", " ".repeat(21)),
-            format!("+{}+", "-".repeat(21)),
-        ],
-        position: Position {
-            x: 3,
-            y: TRACK_Y + 2,
-        },
-    }
-    .render()?;
+//     // train ui
+//     Element {
+//         lines: vec![
+//             format!("+{}+", "-".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("+{}+", "-".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("|{}|", " ".repeat(21)),
+//             format!("+{}+", "-".repeat(21)),
+//         ],
+//         position: Position {
+//             x: 3,
+//             y: TRACK_Y + 2,
+//         },
+//     }
+//     .render()?;
 
-    // signaling system and station ui
-    Element {
-        lines: vec![
-            format!("+{}+", "-".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("+{}+", "-".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("|{}|", " ".repeat(25)),
-            format!("+{}+", "-".repeat(25)),
-        ],
-        position: Position {
-            x: 30,
-            y: TRACK_Y + 2,
-        },
-    }
-    .render()?;
+//     // signaling system and station ui
+//     Element {
+//         lines: vec![
+//             format!("+{}+", "-".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("+{}+", "-".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("|{}|", " ".repeat(25)),
+//             format!("+{}+", "-".repeat(25)),
+//         ],
+//         position: Position {
+//             x: 30,
+//             y: TRACK_Y + 2,
+//         },
+//     }
+//     .render()?;
 
-    Ok(())
-}
+//     Ok(())
+// }

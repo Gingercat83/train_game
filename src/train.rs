@@ -1,11 +1,13 @@
-use std::array;
-
 use anyhow::Result;
 use color_print::cformat;
 
 use crate::{
-    Action, Input, TICKS_PER_SECOND, render::{Element, METERS_PER_CHAR, Position, StaticRender, TRACK_Y}, signal::{MIN_SPEED_LIMIT, Signals}, train_control::{
-        EMERGENCY_BRAKE_THRESHOLD, PENALTY_BRAKE_THRESHOLD, SpeedEnforcement, StandardTrainControl, TrainControl,
+    Action, Input, TICKS_PER_SECOND,
+    render::{Element, METERS_PER_CHAR, Position, StaticRender, TRACK_Y},
+    signal::Signals,
+    train_control::{
+        EMERGENCY_BRAKE_THRESHOLD, PENALTY_BRAKE_THRESHOLD, SpeedEnforcement, StandardTrainControl,
+        TrainControl,
     },
 };
 
@@ -61,20 +63,20 @@ impl StaticRender for Train {
         .render()?;
 
         // render ui
-        self.render_ui()?;
-        self.render_train_control()?;
+        // self.render_ui()?;
+        // self.render_train_control()?;
 
         Ok(())
     }
 }
 
 impl Train {
-    const CAR_LENGTH: u16 = 8;
-    const LOCO_LENGTH: u16 = 10;
-    const LEFT_OFFSET: u16 = 5;
-    const CAR_WEIGHT: f64 = 1000.0;
-    const EMERGENCY_PRESSURE: f64 = 1.0;
-    const RELEASED_PRESSURE: f64 = 5.0;
+    pub const CAR_LENGTH: u16 = 8;
+    pub const LOCO_LENGTH: u16 = 10;
+    pub const LEFT_OFFSET: u16 = 5;
+    pub const CAR_WEIGHT: f64 = 1000.0;
+    pub const EMERGENCY_PRESSURE: f64 = 1.0;
+    pub const RELEASED_PRESSURE: f64 = 5.0;
 
     pub fn new(num_cars: u16) -> Train {
         let car_lengths = num_cars * Self::CAR_LENGTH;
@@ -122,6 +124,18 @@ impl Train {
         Self::CAR_WEIGHT * ((self.num_cars + 1) as f64)
     }
 
+    pub fn get_throttle_setting(&self) -> Throttle {
+        self.throttle
+    }
+
+    pub fn get_brake_setting(&self) -> Brake {
+        self.brake_setting
+    }
+
+    pub fn get_brake_pressure(&self) -> f64 {
+        self.brake_pipe_pressure
+    }
+
     pub fn drag_force(&self) -> f64 {
         -0.7 * self.speed_kph
     }
@@ -155,6 +169,10 @@ impl Train {
     pub fn brake_force(&self) -> f64 {
         // each car has brakes, so force is proportional to number of cars
         -500.0 * (self.num_cars as f64) * self.brake_application()
+    }
+
+    pub fn get_train_control_enforcement(&self) -> SpeedEnforcement {
+        self.train_control.get_speed_enforcement()
     }
 
     pub fn update_brake_pressure(&mut self) {
@@ -194,12 +212,12 @@ impl Train {
         // emergency brake
         if speed_excess >= EMERGENCY_BRAKE_THRESHOLD {
             self.brake_setting = Brake::Emergency;
-        } 
+        }
         // penalty brake
-        else if speed_excess >= PENALTY_BRAKE_THRESHOLD && self.brake_setting != Brake::Emergency {
+        else if speed_excess >= PENALTY_BRAKE_THRESHOLD && self.brake_setting != Brake::Emergency
+        {
             self.brake_setting = Brake::Apply;
         }
-        
 
         Action::Continue
     }
@@ -324,194 +342,195 @@ impl Train {
         }
     }
 
-    pub fn render_ui(&self) -> Result<()> {
-        let speed_display = if self.speed_kph < 0.1 {
-            cformat!("<black!,bold>(   0 KPH )</>")
-        } else {
-            cformat!("<c,bold>( {:3.0} KPH )</>", self.speed_kph)
-        };
+    //     pub fn render_ui(&self) -> Result<()> {
+    //         let speed_display = if self.speed_kph < 0.1 {
+    //             cformat!("<black!,bold>(   0 KPH )</>")
+    //         } else {
+    //             cformat!("<c,bold>( {:3.0} KPH )</>", self.speed_kph)
+    //         };
 
-        let brake_appl = self.brake_application();
+    //         let brake_appl = self.brake_application();
 
-        let throttle_disp = match self.throttle {
-            Throttle::Power(p) => cformat!("<c,bold>[P{p}]</>"),
-            Throttle::Neutral => {
-                if brake_appl > 0.05 {
-                    cformat!("<black!,bold>[N ]</>")
-                } else {
-                    cformat!("<g,bold>[N ]</>")
-                }
-            }
-            Throttle::Brake(b) => cformat!("<y,bold>[B{b}]</>"),
-        };
-        let throttle_power = if let Throttle::Power(p) = self.throttle {
-            "=".repeat(p as usize)
-        } else {
-            "".to_string()
-        };
-        let throttle_brake = if let Throttle::Brake(b) = self.throttle {
-            "=".repeat(b as usize)
-        } else {
-            "".to_string()
-        };
+    //         let throttle_disp = match self.throttle {
+    //             Throttle::Power(p) => cformat!("<c,bold>[P{p}]</>"),
+    //             Throttle::Neutral => {
+    //                 if brake_appl > 0.05 {
+    //                     cformat!("<black!,bold>[N ]</>")
+    //                 } else {
+    //                     cformat!("<g,bold>[N ]</>")
+    //                 }
+    //             }
+    //             Throttle::Brake(b) => cformat!("<y,bold>[B{b}]</>"),
+    //         };
+    //         let throttle_power = if let Throttle::Power(p) = self.throttle {
+    //             "=".repeat(p as usize)
+    //         } else {
+    //             "".to_string()
+    //         };
+    //         let throttle_brake = if let Throttle::Brake(b) = self.throttle {
+    //             "=".repeat(b as usize)
+    //         } else {
+    //             "".to_string()
+    //         };
 
-        let (pressure_disp, brake_percent) = if self.brake_pipe_pressure <= Self::EMERGENCY_PRESSURE
-            || self.brake_setting == Brake::Emergency
-        {
-            (
-                cformat!("<r,bold>({:.1})</>", self.brake_pipe_pressure),
-                cformat!("<r,bold>{:3.0}%</>", brake_appl * 100.0),
-            )
-        } else if self.brake_application() > 0.05 {
-            (
-                cformat!("<y,bold>({:.1})</>", self.brake_pipe_pressure),
-                cformat!("<y,bold>{:3.0}%</>", brake_appl * 100.0),
-            )
-        } else {
-            (
-                cformat!("<g,bold>({:.1})</>", self.brake_pipe_pressure),
-                cformat!("<g,bold>{:3.0}%</>", brake_appl * 100.0),
-            )
-        };
+    //         let (pressure_disp, brake_percent) = if self.brake_pipe_pressure <= Self::EMERGENCY_PRESSURE
+    //             || self.brake_setting == Brake::Emergency
+    //         {
+    //             (
+    //                 cformat!("<r,bold>({:.1})</>", self.brake_pipe_pressure),
+    //                 cformat!("<r,bold>{:3.0}%</>", brake_appl * 100.0),
+    //             )
+    //         } else if self.brake_application() > 0.05 {
+    //             (
+    //                 cformat!("<y,bold>({:.1})</>", self.brake_pipe_pressure),
+    //                 cformat!("<y,bold>{:3.0}%</>", brake_appl * 100.0),
+    //             )
+    //         } else {
+    //             (
+    //                 cformat!("<g,bold>({:.1})</>", self.brake_pipe_pressure),
+    //                 cformat!("<g,bold>{:3.0}%</>", brake_appl * 100.0),
+    //             )
+    //         };
 
-        let brake_application = "=".repeat((brake_appl * 17.0) as usize);
+    //         let brake_application = "=".repeat((brake_appl * 17.0) as usize);
 
-        let release = if self.brake_setting == Brake::Release {
-            cformat!("<bg:g,bold>R</>")
-        } else {
-            cformat!("<g,bold>R</>")
-        };
+    //         let release = if self.brake_setting == Brake::Release {
+    //             cformat!("<bg:g,bold>R</>")
+    //         } else {
+    //             cformat!("<g,bold>R</>")
+    //         };
 
-        let hold = if self.brake_setting == Brake::Hold {
-            cformat!("<bg:w,bold>H</>")
-        } else {
-            cformat!("<w,bold>H</>")
-        };
+    //         let hold = if self.brake_setting == Brake::Hold {
+    //             cformat!("<bg:w,bold>H</>")
+    //         } else {
+    //             cformat!("<w,bold>H</>")
+    //         };
 
-        let apply = if self.brake_setting == Brake::Apply {
-            cformat!("<bg:y,bold>A</>")
-        } else {
-            cformat!("<y,bold>A</>")
-        };
+    //         let apply = if self.brake_setting == Brake::Apply {
+    //             cformat!("<bg:y,bold>A</>")
+    //         } else {
+    //             cformat!("<y,bold>A</>")
+    //         };
 
-        let emergency = if self.brake_setting == Brake::Emergency {
-            cformat!("<bg:r,bold>E</>")
-        } else {
-            cformat!("<r,bold>E</>")
-        };
+    //         let emergency = if self.brake_setting == Brake::Emergency {
+    //             cformat!("<bg:r,bold>E</>")
+    //         } else {
+    //             cformat!("<r,bold>E</>")
+    //         };
 
-        let brake_status = match self.brake_setting {
-            Brake::Release => cformat!("<g>Release</>"),
-            Brake::Hold => cformat!("<w>Hold</>"),
-            Brake::Apply => cformat!("<y>Apply</>"),
-            Brake::Emergency => cformat!("<r>Emergency</>"),
-        };
+    //         let brake_status = match self.brake_setting {
+    //             Brake::Release => cformat!("<g>Release</>"),
+    //             Brake::Hold => cformat!("<w>Hold</>"),
+    //             Brake::Apply => cformat!("<y>Apply</>"),
+    //             Brake::Emergency => cformat!("<r>Emergency</>"),
+    //         };
 
-        Element {
-            lines: vec![
-                cformat!("     {}", speed_display),
-                cformat!(),
-                cformat!(" <bold>Throttle:</>   {}", throttle_disp),
-                cformat!(
-                    " <bold>[<y>{:>8}</>|<c,bold>{:<8}</>]</>",
-                    throttle_brake,
-                    throttle_power,
-                ),
-                cformat!(),
-                cformat!(" <bold>Brake:</>   {:4}", brake_percent),
-                cformat!(" <bold>[<r>{:>17}</>]</>", brake_application),
-                cformat!(),
-                cformat!("Brake pressure: {}", pressure_disp),
-                cformat!(
-                    " <<{} {} {} {}>>  <bold>{}</>",
-                    emergency,
-                    apply,
-                    hold,
-                    release,
-                    brake_status
-                ),
-            ],
-            position: Position {
-                x: 4,
-                y: TRACK_Y + 3,
-            },
-        }
-        .render()?;
-        Ok(())
-    }
+    //         Element {
+    //             lines: vec![
+    //                 cformat!("     {}", speed_display),
+    //                 cformat!(),
+    //                 cformat!(" <bold>Throttle:</>   {}", throttle_disp),
+    //                 cformat!(
+    //                     " <bold>[<y>{:>8}</>|<c,bold>{:<8}</>]</>",
+    //                     throttle_brake,
+    //                     throttle_power,
+    //                 ),
+    //                 cformat!(),
+    //                 cformat!(" <bold>Brake:</>   {:4}", brake_percent),
+    //                 cformat!(" <bold>[<r>{:>17}</>]</>", brake_application),
+    //                 cformat!(),
+    //                 cformat!("Brake pressure: {}", pressure_disp),
+    //                 cformat!(
+    //                     " <<{} {} {} {}>>  <bold>{}</>",
+    //                     emergency,
+    //                     apply,
+    //                     hold,
+    //                     release,
+    //                     brake_status
+    //                 ),
+    //             ],
+    //             position: Position {
+    //                 x: 4,
+    //                 y: TRACK_Y + 3,
+    //             },
+    //         }
+    //         .render()?;
+    //         Ok(())
+    //     }
 
-    pub fn render_train_control(&self) -> Result<()> {
-        let enforcement = self.train_control.get_speed_enforcement();
+    //     pub fn render_train_control(&self) -> Result<()> {
+    //         let enforcement = self.train_control.get_speed_enforcement();
 
-        let SpeedEnforcement {
-            limit,
-            reduction,
-            stop_close,
-        } = enforcement;
+    //         let SpeedEnforcement {
+    //             limit,
+    //             reduction,
+    //             stop_close,
+    //         } = enforcement;
 
-        let mut signal_display: [String; 3] = array::from_fn(|_| cformat!("<black!>-----</>"));
+    //         let mut signal_display: [String; 3] = array::from_fn(|_| cformat!("<black!>-----</>"));
 
-        // show stop
-        if stop_close {
-            signal_display[2] = cformat!("<r,bold>[000]</>");
-        }
-        // show speed limit
-        else if limit <= reduction {
-            signal_display[0] = cformat!("<g,bold>[{:>3}]</>", limit);
-        }
-        // show reduction
-        else {
-            signal_display[1] =
-                cformat!("<y,bold>[<i>{:>3}</>]</>", reduction.max(MIN_SPEED_LIMIT));
-        }
+    //         // show stop
+    //         if stop_close {
+    //             signal_display[2] = cformat!("<r,bold>[000]</>");
+    //         }
+    //         // show speed limit
+    //         else if limit <= reduction {
+    //             signal_display[0] = cformat!("<g,bold>[{:>3}]</>", limit);
+    //         }
+    //         // show reduction
+    //         else {
+    //             signal_display[1] =
+    //                 cformat!("<y,bold>[<i>{:>3}</>]</>", reduction.max(MIN_SPEED_LIMIT));
+    //         }
 
-        let signal_display_string = signal_display.concat();
+    //         let signal_display_string = signal_display.concat();
 
-        let rounded_speed = self.speed_kph.round() as i16;
-        let speed_excess = rounded_speed - (enforcement.limit as i16);
-        let speed_reduce = rounded_speed - (enforcement.reduction as i16);
+    //         let rounded_speed = self.speed_kph.round() as i16;
+    //         let speed_excess = rounded_speed - (enforcement.limit as i16);
+    //         let speed_reduce = rounded_speed - (enforcement.reduction as i16);
 
-        // speeding
-        let status0 = if speed_excess > 0 {
-            cformat!("<r,bold>OVERSPEED</>")
-        }
-        // stop ahead
-        else if enforcement.reduction == 0 {
-            cformat!("<y>Stop Ahead</>")
-        }
-        // reduce speed
-        else if speed_reduce > 0 {
-            cformat!("<y>Reduce Speed Ahead</>")
-        } else {
-            String::new()
-        };
+    //         // speeding
+    //         let status0 = if speed_excess > 0 {
+    //             cformat!("<r,bold>OVERSPEED</>")
+    //         }
+    //         // stop ahead
+    //         else if enforcement.reduction == 0 {
+    //             cformat!("<y>Stop Ahead</>")
+    //         }
+    //         // reduce speed
+    //         else if speed_reduce > 0 {
+    //             cformat!("<y>Reduce Speed Ahead</>")
+    //         } else {
+    //             String::new()
+    //         };
 
-        // emergency brake
-        let status1 = if speed_excess >= EMERGENCY_BRAKE_THRESHOLD || self.brake_setting == Brake::Emergency {
-            cformat!("<r,bold>EMERGENCY BRAKE APPLIED")
-        } 
-        // penalty brake
-        else if speed_excess >= PENALTY_BRAKE_THRESHOLD {
-            cformat!("<r,bold>PENALTY BRAKE APPLIED</>")
-        }
-        else {
-            String::new()
-        };
+    //         // emergency brake
+    //         let status1 = if speed_excess >= EMERGENCY_BRAKE_THRESHOLD
+    //             || self.brake_setting == Brake::Emergency
+    //         {
+    //             cformat!("<r,bold>EMERGENCY BRAKE APPLIED")
+    //         }
+    //         // penalty brake
+    //         else if speed_excess >= PENALTY_BRAKE_THRESHOLD {
+    //             cformat!("<r,bold>PENALTY BRAKE APPLIED</>")
+    //         } else {
+    //             String::new()
+    //         };
 
-        Element {
-            lines: vec![
-                format!("    {}", signal_display_string),
-                String::new(),
-                status0,
-                status1,
-            ],
-            position: Position {
-                x: 32,
-                y: TRACK_Y + 3,
-            },
-        }
-        .render()?;
+    //         Element {
+    //             lines: vec![
+    //                 format!("    {}", signal_display_string),
+    //                 String::new(),
+    //                 status0,
+    //                 status1,
+    //             ],
+    //             position: Position {
+    //                 x: 32,
+    //                 y: TRACK_Y + 3,
+    //             },
+    //         }
+    //         .render()?;
 
-        Ok(())
-    }
+    //         Ok(())
+    //     }
 }

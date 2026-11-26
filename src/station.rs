@@ -4,8 +4,8 @@ use rand::{random_bool, random_range};
 
 use crate::render::{DynamicRender, Element, Entity, METERS_PER_CHAR, Position, TRACK_Y};
 
-pub const MIN_STATION_DIST: f64 = 1000.0;//400.0;
-pub const MAX_STATION_DIST: f64 = 5000.0;//410.0;
+pub const MIN_STATION_DIST: f64 = 1000.0; //400.0;
+pub const MAX_STATION_DIST: f64 = 5000.0; //410.0;
 pub const STATION_LENGTH: f64 = 21.0 * METERS_PER_CHAR;
 pub const STATION_SPEED_LIMIT: u16 = 60;
 
@@ -56,6 +56,10 @@ impl Station {
         self.position_meters
     }
 
+    pub fn get_end_position(&self) -> f64 {
+        self.position_meters + STATION_LENGTH
+    }
+
     pub fn get_name(&self) -> &str {
         &self.name
     }
@@ -82,7 +86,7 @@ pub fn generate_station_name() -> String {
         "The United States of America",
         "Mars",
         "Iacon",
-        "Zyzzyx"
+        "Zyzzyx",
     ];
     let suffixes = [
         "ville", " City", " Center", "ton", "burg", "land", " Street", " Heights", " Central",

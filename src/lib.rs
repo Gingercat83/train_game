@@ -14,11 +14,12 @@ use std::{
 
 use crate::{
     generation::{Trees, generate},
-    render::{DynamicRender, StaticRender, render_static_ui},
+    render::{DynamicRender, StaticRender},
     signal::Signals,
     station::Station,
     track_gen::TrackPieces,
     train::Train,
+    ui::render_ui,
 };
 
 pub mod control_point;
@@ -29,6 +30,7 @@ pub mod station;
 pub mod track_gen;
 pub mod train;
 pub mod train_control;
+pub mod ui;
 
 #[cfg(test)]
 mod test;
@@ -97,12 +99,12 @@ impl StaticRender for Game {
 
         clearscreen::clear()?;
 
-        render_static_ui()?;
+        render_ui(self)?;
         self.trees.render(train_pos)?;
         self.next_station.render(train_pos)?;
         self.train.render()?;
         self.signals.render(train_pos)?;
-        self.train.render_ui()?;
+        // self.train.render_ui()?;
 
         // move cursor to corner
         stdout().execute(cursor::MoveTo(0, 0))?;
@@ -141,7 +143,7 @@ pub fn game_loop(game: &mut Game) -> Result<String> {
         // run game logic
         match tick(game, input)? {
             Action::Quit(message) => return Ok(message),
-            _ => ()
+            _ => (),
         }
 
         // wait for tick timer

@@ -25,19 +25,22 @@ pub struct TrackPiece {
 impl TrackPiece {
     fn track_generate() -> Self {
         const MIN_LENGTH: f64 = 150.0;
-        const MAX_LENGTH: f64 = 2500.0;
+        const MAX_LENGTH: f64 = 1000.0;
 
         let length: f64 = random_range(MIN_LENGTH..MAX_LENGTH);
         
         let mut min_speed = MIN_LINE_SPEED;
+        let mut max_speed = MAX_SPEED_LIMIT;
 
         if length > 750.0 {
-            min_speed = 100;
-        } else if length > 1200.0 {
             min_speed = 120;
         }
 
-        let speed_limit: u16 = random_speed_limit(min_speed, MAX_SPEED_LIMIT);
+        if length < 500.0 {
+            max_speed = 100;
+        }
+
+        let speed_limit: u16 = random_speed_limit(min_speed, max_speed);
 
         Self {
             length,
